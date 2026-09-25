@@ -14,7 +14,7 @@
  */
 
 var SHEET_NAME = 'Rangliste';
-var MAX_SCORE = 3000; // 10 Runden × (100 Fach + 100 Gerät + 100 Zeitbonus)
+var MAX_SCORE = 6000; // 10 Runden × (100 Fach + 100 Gerät + 100 Zeitbonus) × 2 (seltene Geräte)
 var TOP_N = 10;
 
 function doGet(e) {

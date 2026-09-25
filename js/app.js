@@ -58,6 +58,9 @@ const itemsIn = (compId) => content.items.filter((it) => it.locations.some((l) =
 const playable = () => content.items.filter((it) => it.locations.some((l) => compById(l.c)));
 const prio = (it) => it.prio || 2;
 const PRIO_NAME = { 1: 'wichtig', 2: 'normal', 3: 'selten' };
+// Seltene Geräte sind schwerer zu merken und geben mehr Punkte
+const PRIO_MULT = { 1: 1, 2: 1.5, 3: 2 };
+const mult = (it) => PRIO_MULT[prio(it)];
 const VARIANT_NAME = { mix: 'Gemischt', prio: 'Wichtiges zuerst', errors: 'Fehler wiederholen' };
 const label = (it) => (it.count > 1 ? `${it.count}× ${it.name}` : it.name);
 const COMP_ORDER = ['G1', 'G3', 'G5', 'G2', 'G4', 'G6', 'Haspel', 'Dach', 'GR'];
@@ -166,7 +169,7 @@ function renderHome() {
   const errBtn = $('#btn-errors');
   errBtn.textContent = n.bad ? `Fehler wiederholen (${n.bad})` : 'Fehler wiederholen – keine Fehler';
   errBtn.disabled = n.bad === 0;
-  $('#highscore').textContent = stats.best ? `Highscore Challenge: ${stats.best} Punkte` : '';
+  $('#highscore').textContent = stats.best ? `Dein Highscore im Einsatz: ${stats.best} Punkte` : '';
 
   const wrap = $('#comp-progress');
   wrap.replaceChildren();
@@ -198,7 +201,7 @@ function renderBoardList(top) {
   const me = nickname.get().toLowerCase();
   const list = $('#board-list');
   if (!top.length) {
-    list.replaceChildren(el('li', 'empty', 'Noch keine Einträge – spiel eine Challenge!'));
+    list.replaceChildren(el('li', 'empty', 'Noch keine Einträge – spiel einen Einsatz!'));
     return;
   }
   list.replaceChildren(...top.map((r) => {
@@ -291,7 +294,7 @@ function startGame(mode, variant = 'mix') {
   document.body.dataset.mode = mode;
   showScreen('screen-game');
   ensureViews();
-  $('#mode-label').textContent = mode === 'train' ? `Training · ${VARIANT_NAME[variant]}` : { challenge: 'Challenge', learn: 'Lernmodus' }[mode];
+  $('#mode-label').textContent = mode === 'train' ? `Training · ${VARIANT_NAME[variant]}` : { challenge: 'Einsatz', learn: 'Lernmodus' }[mode];
   if (mode === 'learn') {
     setTask('Lernmodus', 'Tippe ein Fach an');
     backToTruck();
@@ -302,9 +305,23 @@ function startGame(mode, variant = 'mix') {
   }
 }
 
-function setTask(label, name) {
+function setTask(label, name, item = null) {
   $('#task-label').textContent = label;
   $('#task-name').textContent = name;
+  const badge = $('#task-badge');
+  const m = item ? mult(item) : 1;
+  badge.hidden = m === 1;
+  if (m > 1) {
+    badge.className = `badge p${prio(item)}`;
+    badge.textContent = `${PRIO_NAME[prio(item)]} · ×${String(m).replace('.', ',')} Punkte`;
+  }
+}
+
+// Punkte mit Multiplikator des aktuellen Geräts gutschreiben
+function award(points) {
+  const got = Math.round(points * mult(game.item));
+  game.score += got;
+  return got;
 }
 
 function updateHud() {
@@ -331,7 +348,7 @@ function nextRound() {
   game.itemTries = 0;
   game.roundStart = performance.now();
   game.comp = null;
-  setTask('Wo liegt …', item.name);
+  setTask('Wo liegt …', item.name, item);
   backToTruck();
   renderControls();
   updateHud();
@@ -452,9 +469,9 @@ async function onCompartmentPick(compId) {
   const ok = game.item.locations.some((l) => l.c === compId);
   if (ok) {
     const pts = game.compTries === 0 ? 100 : game.compTries === 1 ? 50 : 0;
-    game.score += pts;
-    if (pts) toast(`Richtig: ${compId} · +${pts}`, 'ok');
-    if (!comp.image) return finishWithoutPhoto(compId, pts);
+    const got = award(pts);
+    if (got) toast(`Richtig: ${compId} · +${got}`, 'ok');
+    if (!comp.image) return finishWithoutPhoto(compId, pts, got);
     game.phase = 'item';
     updateHud();
     return openCompartment(compId);
@@ -475,14 +492,14 @@ async function onCompartmentPick(compId) {
 }
 
 // Ziele ohne Foto (Dach, Haspel): Das richtige Ziel zu finden reicht
-function finishWithoutPhoto(compId, pts) {
+function finishWithoutPhoto(compId, pts, compGot) {
   const secs = (performance.now() - game.roundStart) / 1000;
   const bonus = game.mode === 'challenge' && pts ? Math.max(0, Math.round(100 - secs * 5)) : 0;
-  game.score += pts + bonus;
+  const total = compGot + award(bonus);
   record(game.item.id, game.compTries === 0);
   truck.flash(compId, GREEN, 1500);
   vibrate(40);
-  toast(`Richtig – ${game.item.name} liegt ${where(compId)}${pts + bonus ? ` · +${pts + bonus}` : ''}`, 'ok');
+  toast(`Richtig – ${game.item.name} liegt ${where(compId)}${total ? ` · +${total}` : ''}`, 'ok');
   game.phase = 'done';
   updateHud();
   renderControls();
@@ -505,7 +522,7 @@ async function openCompartment(compId) {
     setTask(compById(compId).name, `${items.length} Geräte – tippe drauf`);
     drawLearnRects();
   } else {
-    setTask(`In ${compId} – tippe auf`, game.item.name);
+    setTask(`In ${compId} – tippe auf`, game.item.name, game.item);
   }
   renderControls();
 }
@@ -539,13 +556,13 @@ function onPhotoTap(pt) {
     const pts = game.itemTries === 0 ? 100 : game.itemTries === 1 ? 50 : 0;
     const secs = (performance.now() - game.roundStart) / 1000;
     const bonus = game.mode === 'challenge' && pts ? Math.max(0, Math.round(100 - secs * 5)) : 0;
-    game.score += pts + bonus;
+    const got = award(pts + bonus);
     record(game.item.id, game.compTries === 0 && game.itemTries === 0);
     photo.clearShapes();
     for (const s of shapesFor(game.item, game.comp)) photo.addRect(s, 'hs ok');
     photo.addMarker(pt.x, pt.y, 'ok');
     vibrate(40);
-    toast(`Richtig: ${game.item.name}${pts + bonus ? ` · +${pts + bonus}` : ''}`, 'ok');
+    toast(`Richtig: ${game.item.name}${got ? ` · +${got}` : ''}`, 'ok');
     game.phase = 'done';
     updateHud();
     renderControls();
@@ -576,7 +593,7 @@ function showResult() {
   if (game.mode === 'challenge') {
     const isBest = game.score > (stats.best || 0);
     if (isBest) { stats.best = game.score; saveStats(); }
-    $('#result-title').textContent = 'Challenge beendet';
+    $('#result-title').textContent = 'Einsatz beendet';
     $('#result-meta').textContent = `${CHALLENGE_ROUNDS} Geräte in ${time}${isBest ? ' · Neuer Highscore!' : ''}`;
     $('#result-again').hidden = false;
     $('#board-form').hidden = !board;
