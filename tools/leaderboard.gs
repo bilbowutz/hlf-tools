@@ -14,7 +14,7 @@
  */
 
 var SHEET_NAME = 'Rangliste';
-var MAX_SCORE = 6000; // 10 Runden × (100 Fach + 100 Gerät + 100 Zeitbonus) × 2 (seltene Geräte)
+var MAX_SCORE = 6000; // Wettkampf: 30 s, 100 Punkte pro Gerät × 2 (seltene) – großzügige Obergrenze
 var TOP_N = 10;
 
 function doGet(e) {

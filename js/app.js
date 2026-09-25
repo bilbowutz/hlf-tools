@@ -4,7 +4,7 @@ import { createPhotoView, hitTest } from './photo.js';
 import { createLeaderboard, nickname } from './leaderboard.js';
 
 const $ = (sel) => document.querySelector(sel);
-const CHALLENGE_ROUNDS = 10;
+const RACE_SECONDS = 30;
 const GREEN = 0x22c55e, RED_FLASH = 0xef4444, BLUE = 0x3b82f6;
 
 // ---------- Statistik ----------
@@ -173,7 +173,7 @@ function renderHome() {
   const prioBtn = $('[data-variant=prio]');
   prioBtn.textContent = prioOpen ? 'Wichtiges zuerst' : 'Alles gewusst';
   prioBtn.disabled = prioOpen === 0;
-  $('#highscore').textContent = stats.best ? `Dein Highscore im Einsatz: ${stats.best} Punkte` : '';
+  $('#highscore').textContent = stats.best ? `Dein Highscore im Wettkampf: ${stats.best} Punkte` : '';
 
   const wrap = $('#comp-progress');
   wrap.replaceChildren();
@@ -205,7 +205,7 @@ function renderBoardList(top) {
   const me = nickname.get().toLowerCase();
   const list = $('#board-list');
   if (!top.length) {
-    list.replaceChildren(el('li', 'empty', 'Noch keine Einträge – spiel einen Einsatz!'));
+    list.replaceChildren(el('li', 'empty', 'Noch keine Einträge – spiel einen Wettkampf!'));
     return;
   }
   list.replaceChildren(...top.map((r) => {
@@ -281,6 +281,7 @@ function pickItem() {
   if (!pool.length) pool = all;
   // Offene und falsche Geräte kommen öfter dran, sicher gewusste seltener
   const weights = pool.map((it) => {
+    if (isRace()) return 1; // Wettkampf: alle Geräte gleich wahrscheinlich
     const s = stats.items[it.id];
     const st = status(it.id);
     const w = st === 'new' ? 2 : st === 'bad' ? 3 + Math.min(s.w, 3) : Math.max(0.25, 1 - (s.streak || 1) * 0.25);
@@ -292,12 +293,13 @@ function pickItem() {
 }
 
 function startGame(mode, variant = 'mix') {
-  game = { mode, variant, round: 0, score: 0, recent: [], mistakes: [], fixed: 0, startedAt: performance.now() };
+  stopRace();
+  game = { mode, variant, round: 0, score: 0, found: 0, recent: [], mistakes: [], startedAt: performance.now() };
   if (mode === 'train' && !poolFor(game).length) return;
   document.body.dataset.mode = mode;
   showScreen('screen-game');
   ensureViews();
-  $('#mode-label').textContent = mode === 'train' ? `Training · ${VARIANT_NAME[variant]}` : { challenge: 'Einsatz', learn: 'Lernmodus' }[mode];
+  $('#mode-label').textContent = mode === 'train' ? `Training · ${VARIANT_NAME[variant]}` : { challenge: 'Wettkampf', learn: 'Lernmodus' }[mode];
   if (mode === 'learn') {
     setTask('Lernmodus', 'Tippe ein Fach an');
     backToTruck();
@@ -305,7 +307,83 @@ function startGame(mode, variant = 'mix') {
     updateHud();
   } else {
     nextRound();
+    if (mode === 'challenge') startRace();
   }
+}
+
+// ---------- Wettkampf: 30 Sekunden, so viele Geräte wie möglich ----------
+const isRace = () => game?.mode === 'challenge';
+
+function startRace() {
+  game.endsAt = performance.now() + RACE_SECONDS * 1000;
+  $('#race-bar').hidden = false;
+  $('#skip-btn').hidden = false;
+  game.timer = setInterval(tickRace, 200);
+  tickRace();
+}
+
+function tickRace() {
+  const left = Math.max(0, game.endsAt - performance.now());
+  const bar = $('#race-bar');
+  bar.firstElementChild.style.width = (left / (RACE_SECONDS * 1000)) * 100 + '%';
+  bar.classList.toggle('low', left < 5000);
+  updateHud();
+  if (left === 0) {
+    game.over = true;
+    stopRace();
+    showResult();
+  }
+}
+
+function stopRace() {
+  if (game?.timer) clearInterval(game.timer);
+  $('#race-bar').hidden = true;
+  $('#skip-btn').hidden = true;
+}
+
+// Nach kurzer Pause nächstes Gerät – nur wenn noch dasselbe, laufende Spiel
+function raceNext(ms) {
+  const g = game;
+  setTimeout(() => { if (game === g && !g.over) nextRound(); }, ms);
+}
+
+function raceFound() {
+  const got = award(game.miss === 0 ? 100 : 50);
+  game.found++;
+  record(game.item.id, game.miss === 0);
+  toast(`Richtig: ${game.item.name} · +${got}`, 'ok');
+  vibrate(40);
+  game.phase = 'done';
+  updateHud();
+  renderControls();
+  raceNext(700);
+}
+
+// Fehlversuch: der erste kostet Punkte, der zweite das Gerät
+function raceMiss(msg) {
+  game.miss++;
+  vibrate(120);
+  if (game.miss === 1) {
+    game.mistakes.push({ item: game.item });
+    toast(`${msg} – noch ein Versuch`, 'bad');
+    return;
+  }
+  record(game.item.id, false);
+  toast(`Verpasst: ${game.item.name} liegt ${where(game.item.locations[0].c)}`, 'bad');
+  game.phase = 'done';
+  renderControls();
+  raceNext(1400);
+}
+
+$('#skip-btn').addEventListener('click', () => raceSkip());
+
+function raceSkip() {
+  if (!isRace() || game.over) return;
+  if (game.phase === 'done') return;
+  record(game.item.id, false);
+  if (!game.mistakes.some((m) => m.item === game.item)) game.mistakes.push({ item: game.item });
+  game.phase = 'done';
+  nextRound();
 }
 
 function setTask(label, name, item = null) {
@@ -316,7 +394,7 @@ function setTask(label, name, item = null) {
   badge.hidden = m === 1;
   if (m > 1) {
     badge.className = `badge p${prio(item)}`;
-    badge.textContent = `${PRIO_NAME[prio(item)]} · ×${String(m).replace('.', ',')} Punkte`;
+    badge.textContent = `${PRIO_NAME[prio(item)]} ×${String(m).replace('.', ',')}`;
   }
 }
 
@@ -329,7 +407,7 @@ function award(points) {
 
 function updateHud() {
   const hud = $('#hud');
-  if (game.mode === 'challenge') hud.textContent = `${Math.min(game.round, CHALLENGE_ROUNDS)}/${CHALLENGE_ROUNDS} · ${game.score} P`;
+  if (isRace()) hud.textContent = `${Math.ceil(Math.max(0, (game.endsAt ?? 0) - performance.now()) / 1000)} s · ${game.score} P`;
   else if (game.mode === 'train' && game.variant === 'errors') hud.textContent = `${poolFor(game).length} offen · ${game.score} P`;
   else if (game.mode === 'train' && game.variant === 'prio') {
     const n = poolFor({ variant: 'prio' }).length;
@@ -340,7 +418,6 @@ function updateHud() {
 }
 
 function nextRound() {
-  if (game.mode === 'challenge' && game.round >= CHALLENGE_ROUNDS) return showResult();
   if ((game.variant === 'errors' || game.variant === 'prio') && !poolFor(game).length) return showResult();
   const levelBefore = game.level;
   game.round++;
@@ -353,6 +430,7 @@ function nextRound() {
   game.phase = 'compartment';
   game.compTries = 0;
   game.itemTries = 0;
+  game.miss = 0;
   game.roundStart = performance.now();
   game.comp = null;
   setTask('Wo liegt …', item.name, item);
@@ -371,7 +449,6 @@ function backToTruck() {
 }
 
 function isLastRound() {
-  if (game.mode === 'challenge') return game.round >= CHALLENGE_ROUNDS;
   return (game.variant === 'errors' || game.variant === 'prio') && !poolFor(game).length;
 }
 
@@ -387,6 +464,15 @@ function renderControls() {
     return b;
   };
   const inPhoto = !$('#photo').classList.contains('hidden');
+
+  if (isRace()) {
+    if (game.phase === 'done') return;
+    if (inPhoto) btn('← Fahrzeug', () => { game.phase = 'compartment'; backToTruck(); renderControls(); }, 'ghost');
+    else for (const [v, l] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts'], ['dach', 'Dach']]) {
+      btn(l, () => { game.lastView = v; truck.setView(v); }, 'ghost');
+    }
+    return;
+  }
 
   if (!inPhoto) {
     if (game.phase === 'done') {
@@ -474,11 +560,17 @@ async function onCompartmentPick(compId) {
   if (game.phase !== 'compartment') return;
 
   const ok = game.item.locations.some((l) => l.c === compId);
+  if (isRace()) {
+    if (!ok) { truck.flash(compId, RED_FLASH); return raceMiss(`Nicht ${where(compId)}`); }
+    if (!comp.image) { truck.flash(compId, GREEN, 900); return raceFound(); }
+    game.phase = 'item';
+    return openCompartment(compId);
+  }
   if (ok) {
     const pts = game.compTries === 0 ? 100 : game.compTries === 1 ? 50 : 0;
     const got = award(pts);
     if (got) toast(`Richtig: ${compId} · +${got}`, 'ok');
-    if (!comp.image) return finishWithoutPhoto(compId, pts, got);
+    if (!comp.image) return finishWithoutPhoto(compId, got);
     game.phase = 'item';
     updateHud();
     return openCompartment(compId);
@@ -489,8 +581,7 @@ async function onCompartmentPick(compId) {
   truck.flash(compId, RED_FLASH);
   toast(`Nicht ${where(compId)}`, 'bad');
   if (game.compTries === 1) game.mistakes.push({ item: game.item, where: 'Fach' });
-  const limit = game.mode === 'challenge' ? 3 : 2;
-  if (game.compTries >= limit) {
+  if (game.compTries >= 2) {
     setTimeout(() => {
       revealCompartment(false);
       toast(`Es liegt <b>${where(game.item.locations[0].c)}</b> – tippe es an`, 'hint');
@@ -499,10 +590,8 @@ async function onCompartmentPick(compId) {
 }
 
 // Ziele ohne Foto (Dach, Haspel): Das richtige Ziel zu finden reicht
-function finishWithoutPhoto(compId, pts, compGot) {
-  const secs = (performance.now() - game.roundStart) / 1000;
-  const bonus = game.mode === 'challenge' && pts ? Math.max(0, Math.round(100 - secs * 5)) : 0;
-  const total = compGot + award(bonus);
+function finishWithoutPhoto(compId, compGot) {
+  const total = compGot;
   record(game.item.id, game.compTries === 0);
   truck.flash(compId, GREEN, 1500);
   vibrate(40);
@@ -517,9 +606,12 @@ async function openCompartment(compId) {
   truck.setEnabled(false);
   truck.focus(compId);
   truck.open(compId);
+  const g = game;
   const url = await imageUrl(compId);
-  await new Promise((r) => setTimeout(r, 650));
+  await new Promise((r) => setTimeout(r, isRace() ? 350 : 650));
+  if (game !== g || g.over) return;
   await photo.load(url);
+  if (game !== g || g.over) return;
   $('#truck').classList.add('hidden');
   $('#photo').classList.remove('hidden');
   photo.fit();
@@ -559,11 +651,21 @@ function onPhotoTap(pt) {
   }
   if (game.phase !== 'item') return;
 
+  if (isRace()) {
+    if (hitTest(shapesFor(game.item, game.comp), pt)) {
+      photo.clearShapes();
+      for (const sh of shapesFor(game.item, game.comp)) photo.addRect(sh, 'hs ok');
+      photo.addMarker(pt.x, pt.y, 'ok');
+      return raceFound();
+    }
+    photo.addMarker(pt.x, pt.y, 'bad');
+    const names = others.slice(0, 2).map((it) => it.name).join(', ');
+    return raceMiss(others.length ? `Das ist: ${names}` : 'Daneben');
+  }
+
   if (hitTest(shapesFor(game.item, game.comp), pt)) {
     const pts = game.itemTries === 0 ? 100 : game.itemTries === 1 ? 50 : 0;
-    const secs = (performance.now() - game.roundStart) / 1000;
-    const bonus = game.mode === 'challenge' && pts ? Math.max(0, Math.round(100 - secs * 5)) : 0;
-    const got = award(pts + bonus);
+    const got = award(pts);
     record(game.item.id, game.compTries === 0 && game.itemTries === 0);
     photo.clearShapes();
     for (const s of shapesFor(game.item, game.comp)) photo.addRect(s, 'hs ok');
@@ -597,11 +699,11 @@ function showResult() {
   const secs = Math.round((performance.now() - game.startedAt) / 1000);
   const time = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} min`;
   $('#result-score').textContent = game.score;
-  if (game.mode === 'challenge') {
+  if (isRace()) {
     const isBest = game.score > (stats.best || 0);
     if (isBest) { stats.best = game.score; saveStats(); }
-    $('#result-title').textContent = 'Einsatz beendet';
-    $('#result-meta').textContent = `${CHALLENGE_ROUNDS} Geräte in ${time}${isBest ? ' · Neuer Highscore!' : ''}`;
+    $('#result-title').textContent = 'Wettkampf beendet';
+    $('#result-meta').textContent = `${game.found} ${game.found === 1 ? 'Gerät' : 'Geräte'} in ${RACE_SECONDS} Sekunden gefunden${isBest ? ' · Neuer Highscore!' : ''}`;
     $('#result-again').hidden = false;
     $('#board-form').hidden = !board;
     $('#nick').value = nickname.get();
@@ -628,6 +730,7 @@ function showResult() {
 }
 
 $('#game-back').addEventListener('click', () => {
+  stopRace();
   game = null;
   renderHome();
   showScreen('screen-home');

@@ -66,7 +66,7 @@
         </div>
       </div>
       <button class="mode" data-mode="challenge">
-        <span><b>Einsatz</b><small>10 Geräte auf Zeit – jede Sekunde zählt</small></span>
+        <span><b>Wettkampf</b><small>30 Sekunden – finde so viele Geräte wie möglich</small></span>
       </button>
       <button class="mode" data-mode="learn">
         <span><b>Lernmodus</b><small>Fächer öffnen und in Ruhe anschauen</small></span>
@@ -74,7 +74,7 @@
     </div>
 
     <div id="board-box" class="card" hidden>
-      <div class="board-head"><h2>Bestenliste Einsatz</h2><small id="board-status" class="muted"></small></div>
+      <div class="board-head"><h2>Bestenliste Wettkampf</h2><small id="board-status" class="muted"></small></div>
       <ol id="board-list" class="board"></ol>
     </div>
 
@@ -95,9 +95,13 @@
       <span id="hud"></span>
     </header>
     <div class="task">
-      <small><span id="task-label"></span><span id="task-badge" class="badge" hidden></span></small>
-      <strong id="task-name"></strong>
+      <div class="task-text">
+        <small><span id="task-label"></span><span id="task-badge" class="badge" hidden></span></small>
+        <strong id="task-name"></strong>
+      </div>
+      <button id="skip-btn" class="btn small" hidden>Überspringen</button>
     </div>
+    <div id="race-bar" class="race-bar" hidden><i></i></div>
     <div class="stage">
       <div id="truck" class="layer"></div>
       <div id="photo" class="layer hidden"></div>
@@ -113,7 +117,7 @@
   <!-- Ergebnis -->
   <section id="screen-result" class="screen">
     <div class="result">
-      <p id="result-title" class="muted">Einsatz beendet</p>
+      <p id="result-title" class="muted">Wettkampf beendet</p>
       <div id="result-score" class="big-score">0</div>
       <p id="result-meta" class="muted"></p>
       <form id="board-form" class="card board-form" hidden>

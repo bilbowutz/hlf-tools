@@ -4,7 +4,7 @@ Gerätekunde als Minispiel fürs Handy: Ein zufälliges Gerät wird angesagt, ma
 des HLF das richtige Fach und tippt das Gerät dann auf dem Foto des offenen Fachs an.
 
 - **Training**: mit Tipps, ohne Zeitdruck
-- **Einsatz**: 10 Geräte auf Zeit, Bestenliste; seltene Geräte geben ×2, normale ×1,5 Punkte
+- **Wettkampf**: 30 Sekunden, so viele Geräte wie möglich; ein Fehlversuch pro Gerät (halbe Punkte), Überspringen möglich; seltene Geräte ×2, normale ×1,5; Bestenliste
 - **Lernmodus**: Fächer öffnen und anschauen
 - Geräte, die man oft falsch hat, kommen häufiger dran (Statistik bleibt lokal im Browser)
 - Als App installierbar (Homescreen) und offline nutzbar
@@ -33,7 +33,7 @@ Alternativ per Kommandozeile:
 node tools/encrypt.mjs --password '<PW>' --content beladung.json --images ordner-mit-fotos/
 ```
 
-## Bestenliste (Einsatz)
+## Bestenliste (Wettkampf)
 
 Läuft über eine Google Tabelle mit Apps Script (`tools/leaderboard.gs`, Einrichtung steht oben in der Datei).
 Die Web-App-URL steht nur in der verschlüsselten Beladeliste (`leaderboard` in `content.enc`),
