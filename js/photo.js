@@ -50,7 +50,6 @@ export function createPhotoView(container, { onTap } = {}) {
   // Zeiger-Handling: 1 Finger = verschieben/tippen, 2 Finger = zoomen
   const pointers = new Map();
   let gesture = null;
-  let lastTap = 0;
 
   function local(e) {
     const r = container.getBoundingClientRect();
@@ -95,18 +94,11 @@ export function createPhotoView(container, { onTap } = {}) {
     const p = pointers.get(e.pointerId);
     pointers.delete(e.pointerId);
     if (!gesture) return;
+    // Zoomen nur mit zwei Fingern – ein Tipp ist immer eine Antwort
     if (gesture.type === 'pan' && !gesture.moved && p && performance.now() - gesture.t < 500) {
-      const now = performance.now();
-      if (now - lastTap < 300) {
-        // Doppeltipp: rein-/rauszoomen
-        zoomAt(k > kMin * 1.5 ? kMin / k : 2.5, p.x, p.y);
-        lastTap = 0;
-      } else {
-        lastTap = now;
-        const x = ((p.x - tx) / k / natW) * 100;
-        const y = ((p.y - ty) / k / natH) * 100;
-        if (x >= 0 && x <= 100 && y >= 0 && y <= 100 && onTap) onTap({ x, y });
-      }
+      const x = ((p.x - tx) / k / natW) * 100;
+      const y = ((p.y - ty) / k / natH) * 100;
+      if (x >= 0 && x <= 100 && y >= 0 && y <= 100 && onTap) onTap({ x, y });
     }
     if (pointers.size === 0) gesture = null;
     else if (pointers.size === 1) {

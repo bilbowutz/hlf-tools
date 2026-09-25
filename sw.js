@@ -1,6 +1,6 @@
 // Offline-Cache: App-Dateien vorab, alles andere beim ersten Abruf.
 // Strategie: sofort aus dem Cache antworten und im Hintergrund aktualisieren.
-const CACHE = 'hlf-trainer-v13';
+const CACHE = 'hlf-trainer-v14';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/app.js', 'js/crypto.js', 'js/leaderboard.js', 'js/truck.js', 'js/photo.js',
@@ -8,7 +8,9 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE)
+    .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {

@@ -18,8 +18,10 @@ async function start(k) {
   try {
     content = await fetchContent(k);
   } catch (err) {
-    // Beim allerersten Einrichten gibt es noch keine Daten
-    if (!confirm('Keine lesbaren Daten gefunden (falsches Passwort?). Mit leerer Liste starten?')) throw err;
+    // Falsches Passwort nie überspielen – sonst würde man Daten mit falschem Schlüssel erzeugen
+    if (err.name === 'OperationError') throw err;
+    // Nur beim allerersten Einrichten (noch gar keine Datei) mit leerer Liste starten
+    if (!/: 404$/.test(err.message) || !confirm('Noch keine Beladeliste vorhanden. Mit leerer Liste starten?')) throw err;
     content = { version: 1, vehicle: { name: 'HLF', subtitle: '' }, compartments: [], items: [] };
   }
   key = k;
@@ -37,7 +39,7 @@ $('#admin-lock-form').addEventListener('submit', async (e) => {
     await start(k);
   } catch (err) {
     console.error(err);
-    $('#admin-error').textContent = 'Anmeldung fehlgeschlagen.';
+    $('#admin-error').textContent = err.name === 'OperationError' ? 'Falsches Passwort.' : 'Daten konnten nicht geladen werden.';
   }
 });
 
@@ -245,7 +247,12 @@ $('#photo-file').addEventListener('change', async (e) => {
   e.target.value = '';
   const c = comp();
   if (!file || !c) return;
-  const bitmap = await createImageBitmap(file);
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return alert('Dieses Bild kann der Browser nicht lesen. Bitte als JPG oder PNG auswählen.');
+  }
   const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);
@@ -267,7 +274,7 @@ $('#item-new').addEventListener('click', () => {
   if (!comp()) return alert('Erst ein Fach anlegen.');
   const name = prompt('Name des Geräts:')?.trim();
   if (!name) return;
-  const it = { id: slug(name), name, locations: [{ c: compId, shapes: [] }] };
+  const it = { id: slug(name), name, prio: 2, locations: [{ c: compId, shapes: [] }] };
   content.items.push(it);
   markDirty();
   selectItem(it.id);

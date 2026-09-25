@@ -314,8 +314,22 @@ export function createTruckView(container, { onPick } = {}) {
   const pointer = new THREE.Vector2();
   let down = null;
   let enabled = true;
-  renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  const active = new Set();
+  let multi = false; // Zwei-Finger-Geste (Zoomen) → kein Tipp
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    active.add(e.pointerId);
+    if (active.size > 1) multi = true;
+    down = { x: e.clientX, y: e.clientY, t: performance.now() };
+  });
+  const release = (e) => {
+    active.delete(e.pointerId);
+    if (active.size === 0) setTimeout(() => { multi = false; }, 0);
+  };
+  renderer.domElement.addEventListener('pointercancel', (e) => { release(e); down = null; });
   renderer.domElement.addEventListener('pointerup', (e) => {
+    const wasMulti = multi;
+    release(e);
+    if (wasMulti) { down = null; return; }
     if (!down || !enabled) return;
     const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
     const dt = performance.now() - down.t;

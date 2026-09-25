@@ -107,7 +107,9 @@ $('#lock-form').addEventListener('submit', async (e) => {
     await rememberKey(k);
   } catch (err) {
     console.error(err);
-    $('#lock-error').textContent = navigator.onLine ? 'Falsches Passwort.' : 'Keine Verbindung – bitte einmal online anmelden.';
+    // Entschlüsseln fehlgeschlagen = falsches Passwort, alles andere = Verbindung
+    $('#lock-error').textContent = err.name === 'OperationError'
+      ? 'Falsches Passwort.' : 'Daten konnten nicht geladen werden – Verbindung prüfen.';
   } finally {
     btn.disabled = false;
     btn.textContent = 'Entsperren';
@@ -477,7 +479,11 @@ function nextRound() {
   updateHud();
 }
 
+// Jede neue Aktion macht ein noch laufendes Öffnen ungültig
+let openSeq = 0;
+
 function backToTruck() {
+  openSeq++;
   hideSheet();
   $('#photo').classList.add('hidden');
   $('#truck').classList.remove('hidden');
@@ -645,11 +651,13 @@ async function openCompartment(compId) {
   truck.focus(compId);
   truck.open(compId);
   const g = game;
+  const seq = ++openSeq;
+  const stale = () => game !== g || g.over || seq !== openSeq;
   const url = await imageUrl(compId);
   await new Promise((r) => setTimeout(r, isRace() ? 350 : 650));
-  if (game !== g || g.over) return;
+  if (stale()) return;
   await photo.load(url);
-  if (game !== g || g.over) return;
+  if (stale()) return;
   $('#truck').classList.add('hidden');
   $('#photo').classList.remove('hidden');
   photo.fit();
@@ -782,8 +790,9 @@ $('#result-home').addEventListener('click', () => { renderHome(); showScreen('sc
     const k = await recallKey();
     if (k) { await unlock(k); return; }
   } catch (err) {
-    console.warn('Gespeicherter Schlüssel ungültig', err);
-    forgetKey();
+    // Nur bei falschem Schlüssel vergessen – nicht, wenn nur das Netz fehlt
+    if (err.name === 'OperationError') forgetKey();
+    else $('#lock-error').textContent = 'Daten konnten nicht geladen werden – Verbindung prüfen.';
   }
   showScreen('screen-lock');
 })();
