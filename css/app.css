@@ -77,7 +77,6 @@ button { font: inherit; color: inherit; }
 .mode:active { transform: scale(.98); }
 .mode b { display: block; font-size: 18px; }
 .mode small { color: var(--muted); }
-.mode-icon { font-size: 30px; width: 48px; height: 48px; display: grid; place-items: center; background: var(--bg); border-radius: 12px; flex: none; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .stats div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; text-align: center; }
 .stats b { display: block; font-size: 22px; }

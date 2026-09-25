@@ -304,7 +304,7 @@ function finishWithoutPhoto(compId, pts) {
   record(game.item.id, game.compTries === 0);
   truck.flash(compId, GREEN, 1500);
   vibrate(40);
-  toast(`✔ ${game.item.name} liegt ${where(compId)}${pts + bonus ? ` · +${pts + bonus}` : ''}`, 'ok');
+  toast(`Richtig – ${game.item.name} liegt ${where(compId)}${pts + bonus ? ` · +${pts + bonus}` : ''}`, 'ok');
   game.phase = 'done';
   updateHud();
   renderControls();
@@ -367,7 +367,7 @@ function onPhotoTap(pt) {
     for (const s of shapesFor(game.item, game.comp)) photo.addRect(s, 'hs ok');
     photo.addMarker(pt.x, pt.y, 'ok');
     vibrate(40);
-    toast(`✔ ${game.item.name}${pts + bonus ? ` · +${pts + bonus}` : ''}`, 'ok');
+    toast(`Richtig: ${game.item.name}${pts + bonus ? ` · +${pts + bonus}` : ''}`, 'ok');
     game.phase = 'done';
     updateHud();
     renderControls();
