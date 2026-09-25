@@ -42,6 +42,19 @@
       <button id="logout" class="btn ghost small" title="Abmelden">Abmelden</button>
     </header>
 
+    <div class="card progress">
+      <div class="progress-head">
+        <div><span id="prog-pct" class="progress-pct">0 %</span> <span class="muted">gelernt</span></div>
+        <small id="prog-count" class="muted"></small>
+      </div>
+      <div id="prog-bar"></div>
+      <div class="legend">
+        <span class="st-ok"><i></i>Gewusst <b id="prog-ok">0</b></span>
+        <span class="st-bad"><i></i>Falsch <b id="prog-bad">0</b></span>
+        <span class="st-new"><i></i>Noch offen <b id="prog-new">0</b></span>
+      </div>
+    </div>
+
     <div class="modes">
       <button class="mode" data-mode="train">
         <span><b>Training</b><small>Gerät suchen – mit Tipps, ohne Zeitdruck</small></span>
@@ -54,17 +67,12 @@
       </button>
     </div>
 
-    <div class="stats">
-      <div><b id="stat-items">–</b><small>Geräte</small></div>
-      <div><b id="stat-rate">–</b><small>Trefferquote</small></div>
-      <div><b id="stat-best">–</b><small>Highscore</small></div>
+    <div class="card">
+      <h2>Nach Fach</h2>
+      <div id="comp-progress"></div>
     </div>
 
-    <div id="hard-box" class="card" hidden>
-      <h2>Übe diese nochmal</h2>
-      <ul id="hard-list" class="list"></ul>
-    </div>
-
+    <p id="highscore" class="muted center"></p>
     <button id="reset-stats" class="link">Statistik zurücksetzen</button>
   </section>
 
@@ -83,6 +91,10 @@
       <div id="truck" class="layer"></div>
       <div id="photo" class="layer hidden"></div>
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <div id="sheet" class="sheet" hidden>
+        <div class="sheet-head"><b id="sheet-title"></b><button id="sheet-close" class="icon-btn" aria-label="Schließen">×</button></div>
+        <ul id="sheet-list" class="dot-list"></ul>
+      </div>
     </div>
     <footer id="controls" class="controls"></footer>
   </section>

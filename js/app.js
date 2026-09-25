@@ -17,7 +17,15 @@ let stats = loadStats();
 function record(itemId, ok) {
   const s = (stats.items[itemId] ||= { r: 0, w: 0 });
   ok ? s.r++ : s.w++;
+  s.last = ok ? 1 : 0;
+  s.streak = ok ? (s.streak || 0) + 1 : 0;
   saveStats();
+}
+// 'ok' = zuletzt gewusst, 'bad' = zuletzt falsch, 'new' = noch nie gefragt
+function status(itemId) {
+  const s = stats.items[itemId];
+  if (!s) return 'new';
+  return (s.last ?? (s.r >= s.w ? 1 : 0)) ? 'ok' : 'bad';
 }
 
 // ---------- Zustand ----------
@@ -46,6 +54,15 @@ function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
 const compById = (id) => content.compartments.find((c) => c.id === id);
 const itemsIn = (compId) => content.items.filter((it) => it.locations.some((l) => l.c === compId));
 const playable = () => content.items.filter((it) => it.locations.some((l) => compById(l.c)));
+const label = (it) => (it.count > 1 ? `${it.count}× ${it.name}` : it.name);
+const COMP_ORDER = ['G1', 'G3', 'G5', 'G2', 'G4', 'G6', 'Haspel', 'Dach', 'GR'];
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
 
 async function imageUrl(compId) {
   const comp = compById(compId);
@@ -104,27 +121,63 @@ $('#reset-stats').addEventListener('click', () => {
 });
 
 // ---------- Startseite ----------
+function countStatus(items) {
+  const n = { ok: 0, bad: 0, new: 0 };
+  for (const it of items) n[status(it.id)]++;
+  return n;
+}
+
+function segBar(n, total, cls = 'segbar') {
+  const bar = el('div', cls);
+  for (const k of ['ok', 'bad', 'new']) {
+    const seg = el('i', `seg ${k}`);
+    seg.style.width = '0%';
+    seg.dataset.w = total ? (n[k] / total) * 100 : 0;
+    bar.appendChild(seg);
+  }
+  return bar;
+}
+
+function animateBars(root) {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    root.querySelectorAll('.seg').forEach((seg) => { seg.style.width = seg.dataset.w + '%'; });
+  }));
+}
+
 function renderHome() {
   const items = playable();
-  const totals = Object.values(stats.items).reduce((a, s) => ({ r: a.r + s.r, w: a.w + s.w }), { r: 0, w: 0 });
-  const rate = totals.r + totals.w ? Math.round((totals.r / (totals.r + totals.w)) * 100) + ' %' : '–';
-  $('#stat-items').textContent = items.length;
-  $('#stat-rate').textContent = rate;
-  $('#stat-best').textContent = stats.best || '–';
+  const n = countStatus(items);
+  const pct = items.length ? Math.round((n.ok / items.length) * 100) : 0;
+  $('#prog-pct').textContent = `${pct} %`;
+  $('#prog-count').textContent = `${n.ok} von ${items.length} Geräten gewusst`;
+  $('#prog-ok').textContent = n.ok;
+  $('#prog-bad').textContent = n.bad;
+  $('#prog-new').textContent = n.new;
+  $('#prog-bar').replaceWith(Object.assign(segBar(n, items.length, 'segbar big'), { id: 'prog-bar' }));
+  $('#highscore').textContent = stats.best ? `Highscore Challenge: ${stats.best} Punkte` : '';
 
-  const hard = items
-    .map((it) => ({ it, s: stats.items[it.id] }))
-    .filter((x) => x.s && x.s.w > 0)
-    .sort((a, b) => (b.s.w - b.s.r) - (a.s.w - a.s.r))
-    .slice(0, 5);
-  const list = $('#hard-list');
-  list.replaceChildren(...hard.map(({ it, s }) => {
-    const li = document.createElement('li');
-    li.innerHTML = `<span></span><small>${s.w}× falsch</small>`;
-    li.firstChild.textContent = it.name;
-    return li;
-  }));
-  $('#hard-box').hidden = hard.length === 0;
+  const wrap = $('#comp-progress');
+  wrap.replaceChildren();
+  const comps = [...content.compartments].sort((a, b) => COMP_ORDER.indexOf(a.id) - COMP_ORDER.indexOf(b.id));
+  for (const comp of comps) {
+    const list = itemsIn(comp.id);
+    if (!list.length) continue;
+    const cn = countStatus(list);
+    const det = el('details', 'comp-row');
+    const sum = el('summary');
+    sum.append(el('span', 'comp-id', comp.id), segBar(cn, list.length, 'segbar mini'), el('span', 'comp-frac', `${cn.ok}/${list.length}`));
+    det.appendChild(sum);
+    const ul = el('ul', 'dot-list');
+    const order = { bad: 0, new: 1, ok: 2 };
+    for (const it of [...list].sort((a, b) => order[status(a.id)] - order[status(b.id)])) {
+      const li = el('li', `st-${status(it.id)}`);
+      li.append(el('i'), el('span', '', label(it)));
+      ul.appendChild(li);
+    }
+    det.appendChild(ul);
+    wrap.appendChild(det);
+  }
+  animateBars($('#screen-home'));
 }
 
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => startGame(b.dataset.mode)));
@@ -141,9 +194,13 @@ function ensureViews() {
 function pickItem() {
   const recent = game.recent;
   const pool = playable().filter((it) => !recent.includes(it.id));
+  // Offene und falsche Geräte kommen öfter dran, sicher gewusste seltener
   const weights = pool.map((it) => {
-    const s = stats.items[it.id] || { r: 0, w: 0 };
-    return Math.max(0.3, 1 + s.w * 1.5 - s.r * 0.4);
+    const s = stats.items[it.id];
+    const st = status(it.id);
+    if (st === 'new') return 2;
+    if (st === 'bad') return 3 + Math.min(s.w, 3);
+    return Math.max(0.25, 1 - (s.streak || 1) * 0.25);
   });
   let r = Math.random() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
@@ -196,6 +253,7 @@ function nextRound() {
 }
 
 function backToTruck() {
+  hideSheet();
   $('#photo').classList.add('hidden');
   $('#truck').classList.remove('hidden');
   truck.closeAll();
@@ -231,6 +289,16 @@ function renderControls() {
 
   if (game.mode === 'learn') {
     btn('← Fahrzeug', () => { backToTruck(); setTask('Lernmodus', 'Tippe ein Fach an'); renderControls(); }, 'ghost');
+    btn('Alle Geräte', () => {
+      drawLearnRects();
+      showSheet(compById(game.comp).name, itemsIn(game.comp), (it) => {
+        hideSheet();
+        toast(label(it));
+        drawLearnRects([it]);
+        const shape = shapesFor(it, game.comp)[0];
+        if (shape) photo.zoomTo(shape);
+      });
+    }, 'ghost');
     return;
   }
   if (game.phase === 'item') {
@@ -239,6 +307,27 @@ function renderControls() {
   } else if (game.phase === 'done') {
     const last = game.mode === 'challenge' && game.round >= CHALLENGE_ROUNDS;
     btn(last ? 'Ergebnis' : 'Weiter →', nextRound, 'primary');
+  }
+}
+
+// ---------- Liste über dem Bild (Lernmodus) ----------
+function showSheet(title, items, onPick) {
+  $('#sheet-title').textContent = title;
+  $('#sheet-list').replaceChildren(...items.map((it) => {
+    const li = el('li', `st-${status(it.id)}`);
+    li.append(el('i'), el('span', '', label(it)));
+    if (onPick) li.addEventListener('click', () => onPick(it));
+    return li;
+  }));
+  $('#sheet').hidden = false;
+}
+function hideSheet() { $('#sheet').hidden = true; }
+$('#sheet-close').addEventListener('click', hideSheet);
+
+function drawLearnRects(selected = []) {
+  photo.clearShapes();
+  for (const it of itemsIn(game.comp)) {
+    for (const s of shapesFor(it, game.comp)) photo.addRect(s, selected.includes(it) ? 'hs sel' : 'hs learn', it.name);
   }
 }
 
@@ -265,9 +354,10 @@ async function onCompartmentPick(compId) {
 
   if (game.mode === 'learn') {
     if (comp?.image) return openCompartment(compId);
-    const names = itemsIn(compId).map((it) => it.name);
+    const list = itemsIn(compId);
     truck.flash(compId, BLUE, 1500);
-    return toast(names.length ? `<b>${comp.name}</b>: ${names.join(', ')}` : `${compId}: noch kein Foto vorhanden`, 'hint');
+    if (!list.length) return toast(`${compId}: noch kein Foto vorhanden`);
+    return showSheet(comp.name, list);
   }
   if (game.phase !== 'compartment') return;
 
@@ -325,9 +415,7 @@ async function openCompartment(compId) {
   if (game.mode === 'learn') {
     const items = itemsIn(compId);
     setTask(compById(compId).name, `${items.length} Geräte – tippe drauf`);
-    for (const it of items) {
-      for (const s of it.locations.find((l) => l.c === compId).shapes) photo.addRect(s, 'hs learn', it.name);
-    }
+    drawLearnRects();
   } else {
     setTask(`In ${compId} – tippe auf`, game.item.name);
   }
@@ -351,8 +439,10 @@ function onPhotoTap(pt) {
   const others = itemsIn(game.comp).filter((it) => it !== game.item && hitTest(shapesFor(it, game.comp), pt, 0));
 
   if (game.mode === 'learn') {
-    const hit = itemsIn(game.comp).find((it) => hitTest(shapesFor(it, game.comp), pt, 0));
-    if (hit) toast(hit.name, 'ok');
+    const hits = itemsIn(game.comp).filter((it) => hitTest(shapesFor(it, game.comp), pt, 0));
+    drawLearnRects(hits);
+    if (hits.length) showSheet(hits.length > 1 ? 'Hier liegen' : 'Hier liegt', hits);
+    else hideSheet();
     return;
   }
   if (game.phase !== 'item') return;
@@ -378,7 +468,8 @@ function onPhotoTap(pt) {
   vibrate(120);
   photo.addMarker(pt.x, pt.y, 'bad');
   if (game.itemTries === 1) game.mistakes.push({ item: game.item, where: 'Gerät' });
-  toast(others.length ? `Das ist: <b>${others[0].name}</b>` : 'Daneben', 'bad');
+  const names = others.slice(0, 3).map((it) => it.name).join(', ') + (others.length > 3 ? ' …' : '');
+  toast(others.length ? `${others.length > 1 ? 'Da liegen' : 'Da liegt'}: <b>${names}</b>` : 'Daneben', 'bad');
   if (game.itemTries >= 3) {
     record(game.item.id, false);
     revealItem(false);

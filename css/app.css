@@ -77,16 +77,50 @@ button { font: inherit; color: inherit; }
 .mode:active { transform: scale(.98); }
 .mode b { display: block; font-size: 18px; }
 .mode small { color: var(--muted); }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.stats div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; text-align: center; }
-.stats b { display: block; font-size: 22px; }
-.stats small { color: var(--muted); font-size: 12px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
 .card h2 { font-size: 15px; margin-bottom: 8px; }
 .list { list-style: none; margin: 0; padding: 0; }
 .list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 .list li:first-child { border-top: 0; }
 .list small { color: var(--muted); white-space: nowrap; }
+
+/* Fortschritt */
+:root { --st-ok: #16a34a; --st-bad: #dc2626; --st-new: #d1d5db; }
+@media (prefers-color-scheme: dark) { :root { --st-new: #3a3f48; } }
+.center { text-align: center; }
+.progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.progress-pct { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.segbar { display: flex; gap: 2px; border-radius: 999px; overflow: hidden; background: var(--st-new); }
+.segbar.big { height: 14px; margin: 10px 0 12px; }
+.segbar.mini { height: 8px; flex: 1; min-width: 60px; }
+.seg { display: block; height: 100%; transition: width .8s cubic-bezier(.2, .8, .2, 1); }
+.seg.ok { background: var(--st-ok); }
+.seg.bad { background: var(--st-bad); }
+.seg.new { background: var(--st-new); }
+.seg[style*="width: 0%"] { margin-left: -2px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.legend b { color: var(--text); font-variant-numeric: tabular-nums; }
+.legend i, .dot-list i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; flex: none; }
+.st-ok i { background: var(--st-ok); }
+.st-bad i { background: var(--st-bad); }
+.st-new i { background: var(--st-new); }
+.comp-row { border-top: 1px solid var(--line); }
+.comp-row:first-child { border-top: 0; }
+.comp-row summary { display: flex; align-items: center; gap: 12px; padding: 10px 0; cursor: pointer; list-style: none; }
+.comp-row summary::-webkit-details-marker { display: none; }
+.comp-id { font-weight: 700; width: 64px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.comp-frac { font-size: 13px; color: var(--muted); width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+.dot-list { list-style: none; margin: 0; padding: 0 0 10px; }
+.dot-list li { display: flex; align-items: center; padding: 5px 0; font-size: 15px; }
+
+/* Geräteliste über dem Foto */
+.sheet {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; max-height: 45%; overflow: auto; z-index: 4;
+  background: var(--surface); border-radius: var(--radius); padding: 4px 14px 6px; box-shadow: 0 8px 30px rgb(0 0 0 / .35);
+}
+.sheet-head { display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--surface); }
+.sheet .dot-list li { cursor: pointer; padding: 8px 0; border-top: 1px solid var(--line); }
+.hs.sel { fill: rgb(245 158 11 / .3); stroke: #f59e0b; }
 
 /* Spiel */
 #screen-game { padding: var(--safe-top) 0 var(--safe-bottom); height: 100dvh; min-height: 0; }
