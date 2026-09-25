@@ -216,8 +216,14 @@ function buildShutter(def) {
   return { group, shutter, inner, width, height, open: 0, target: 0, flash: null };
 }
 
-export function createTruckView(container, { onPick } = {}) {
+export function createTruckView(container, { onPick, onLost } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  // iOS entzieht bei Speicherdruck manchmal den Grafikkontext → App baut die Ansicht neu auf
+  renderer.domElement.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    running = false;
+    onLost?.();
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
@@ -397,13 +403,24 @@ export function createTruckView(container, { onPick } = {}) {
     close(id) { const s = shutters.get(id); if (s) s.target = 0; },
     closeAll() { for (const s of shutters.values()) s.target = 0; },
     flash(id, color, ms = 900) { const t = targets.get(id); if (t) t.flash = { color, until: performance.now() + ms }; },
+    // Foto hinter dem Rollladen – verkleinert, sonst braucht es unnötig viel Grafikspeicher
     setInterior(id, url) {
       const s = shutters.get(id);
       if (!s) return;
-      new THREE.TextureLoader().load(url, (tex) => {
+      const img = new Image();
+      img.onload = () => {
+        if (!running) return;
+        const scale = Math.min(1, 512 / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * scale);
+        c.height = Math.round(img.naturalHeight * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        const tex = new THREE.CanvasTexture(c);
         tex.colorSpace = THREE.SRGBColorSpace;
+        s.inner.material.dispose();
         s.inner.material = new THREE.MeshBasicMaterial({ map: tex });
-      });
+      };
+      img.src = url;
     },
     dispose() {
       running = false;
@@ -412,5 +429,45 @@ export function createTruckView(container, { onPick } = {}) {
       renderer.dispose();
       renderer.domElement.remove();
     },
+  };
+}
+
+// Notlösung ohne 3D (kein WebGL): einfache Knöpfe für alle Fächer, gleiche Schnittstelle
+export function createFallbackView(container, { onPick } = {}) {
+  const groups = [
+    ['Links', ['G1', 'G3', 'G5']], ['Rechts', ['G2', 'G4', 'G6']],
+    ['Heck', ['Haspel', 'GR']], ['Oben', ['Dach']],
+  ];
+  const root = document.createElement('div');
+  root.className = 'fallback';
+  const buttons = new Map();
+  let enabled = true;
+  for (const [title, ids] of groups) {
+    const h = document.createElement('h3');
+    h.textContent = title;
+    const row = document.createElement('div');
+    row.className = 'fallback-row';
+    for (const id of ids) {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = id;
+      b.addEventListener('click', () => enabled && onPick?.(id));
+      buttons.set(id, b);
+      row.appendChild(b);
+    }
+    root.append(h, row);
+  }
+  container.appendChild(root);
+  return {
+    isFallback: true,
+    setView() {}, focus() {}, open() {}, close() {}, closeAll() {}, setInterior() {},
+    setEnabled(v) { enabled = v; },
+    flash(id, color) {
+      const b = buttons.get(id);
+      if (!b) return;
+      b.dataset.flash = color === 0xef4444 ? 'bad' : 'ok';
+      setTimeout(() => { delete b.dataset.flash; }, 900);
+    },
+    dispose() { root.remove(); },
   };
 }

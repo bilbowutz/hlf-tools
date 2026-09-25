@@ -1,5 +1,5 @@
 import { loadMeta, deriveKey, fetchContent, fetchImageUrl, imagePath, rememberKey, recallKey, forgetKey } from './crypto.js';
-import { createTruckView } from './truck.js';
+import { createTruckView, createFallbackView } from './truck.js';
 import { createPhotoView, hitTest } from './photo.js';
 import { createLeaderboard, nickname } from './leaderboard.js';
 
@@ -86,7 +86,6 @@ async function imageUrl(compId) {
 }
 
 // Nach dem Entsperren alle Fotos laden, entschlüsseln und vorab dekodieren
-const decoded = [];
 let preloading = null;
 function preloadImages() {
   if (preloading) return preloading;
@@ -109,8 +108,7 @@ function preloadImages() {
     try {
       const img = new Image();
       img.src = await imageUrl(c.id);
-      await img.decode();
-      decoded.push(img);
+      await img.decode(); // danach nicht festhalten – spart Speicher auf dem Handy
       done++;
     } catch {
       failed++;
@@ -168,7 +166,6 @@ $('#logout').addEventListener('click', () => {
   key = null;
   content = null;
   imageUrls.clear();
-  decoded.length = 0;
   $('#img-status').hidden = true;
   $('#password').value = '';
   showScreen('screen-lock');
@@ -304,11 +301,31 @@ $('#board-form').addEventListener('submit', async (e) => {
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => startGame(b.dataset.mode, b.dataset.variant)));
 
 // ---------- Spiel ----------
-function ensureViews() {
-  if (!truck) {
-    truck = createTruckView($('#truck'), { onPick: onCompartmentPick });
-    for (const c of content.compartments) imageUrl(c.id)?.then((url) => url && truck.setInterior(c.id, url)).catch(() => {});
+// 3D-Ansicht; fällt auf einfache Knöpfe zurück, wenn WebGL fehlt oder wiederholt abstürzt
+let glFailures = 0;
+function buildTruck() {
+  const opts = { onPick: onCompartmentPick, onLost: () => setTimeout(rebuildTruck, 50) };
+  try {
+    truck = glFailures >= 3 ? createFallbackView($('#truck'), opts) : createTruckView($('#truck'), opts);
+  } catch (err) {
+    console.warn('3D nicht verfügbar', err);
+    truck = createFallbackView($('#truck'), opts);
   }
+  const t = truck;
+  for (const c of content.compartments) imageUrl(c.id)?.then((url) => url && t === truck && truck.setInterior(c.id, url)).catch(() => {});
+}
+
+function rebuildTruck() {
+  glFailures++;
+  truck?.dispose();
+  buildTruck();
+  if (!game) return;
+  truck.setView(game.mode === 'learn' ? 'start' : (game.lastView || 'start'), true);
+  truck.setEnabled($('#photo').classList.contains('hidden'));
+}
+
+function ensureViews() {
+  if (!truck) buildTruck();
   if (!photo) photo = createPhotoView($('#photo'), { onTap: onPhotoTap });
 }
 
@@ -561,7 +578,7 @@ function renderControls() {
   if (isRace()) {
     if (game.phase === 'done') return;
     // Im Wettkampf bleibt ein geöffnetes Fach offen – kein Zurück zum Fahrzeug
-    if (!inPhoto) for (const [v, l] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts'], ['dach', 'Dach']]) {
+    if (!inPhoto && !truck.isFallback) for (const [v, l] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts'], ['dach', 'Dach']]) {
       btn(l, () => { game.lastView = v; truck.setView(v); }, 'ghost');
     }
     return;
@@ -572,7 +589,7 @@ function renderControls() {
       btn(isLastRound() ? 'Ergebnis' : 'Weiter →', nextRound, 'primary');
       return;
     }
-    for (const [v, label] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts'], ['dach', 'Dach']]) {
+    if (!truck.isFallback) for (const [v, label] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts'], ['dach', 'Dach']]) {
       btn(label, () => { game.lastView = v; truck.setView(v); }, 'ghost');
     }
     if (game.mode === 'train' && game.phase === 'compartment') btn('Tipp', () => revealCompartment(true), 'ghost');

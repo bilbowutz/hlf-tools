@@ -1,7 +1,7 @@
 // Offline-Cache: App-Dateien vorab, alles andere beim ersten Abruf.
 // Strategie: sofort aus dem Cache antworten und im Hintergrund aktualisieren.
 // Fotos liegen in einem eigenen Cache, der App-Updates überlebt.
-const CACHE = 'hlf-trainer-v15';
+const CACHE = 'hlf-trainer-v16';
 const IMG_CACHE = 'hlf-img-v1';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icons/icon.svg',

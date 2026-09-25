@@ -190,6 +190,13 @@ button { font: inherit; color: inherit; }
 .controls:empty { display: none; }
 .controls .btn { flex: 1; padding-left: 6px; padding-right: 6px; min-width: 0; }
 
+/* Ersatz ohne 3D */
+.fallback { position: absolute; inset: 0; overflow: auto; padding: 12px 16px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.fallback h3 { margin: 6px 0 0; font-size: 13px; color: var(--muted); font-weight: 600; }
+.fallback-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.fallback .btn[data-flash=bad] { background: var(--bad); color: #fff; }
+.fallback .btn[data-flash=ok] { background: var(--ok); color: #fff; }
+
 /* Foto */
 .photo-view { overflow: hidden; background: #000; cursor: crosshair; user-select: none; -webkit-user-select: none; }
 .photo-content { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
