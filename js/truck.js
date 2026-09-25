@@ -25,6 +25,7 @@ const SHUTTERS = [
 ];
 
 export const VIEWS = {
+  dach: { pos: [-1.0, 10.5, -4.5], target: [-0.9, 2.9, 0], span: 3.2 },
   links: { pos: [0.2, 3.2, -10.5], target: [0.2, 1.6, 0], span: 4.5 },
   rechts: { pos: [0.2, 3.2, 10.5], target: [0.2, 1.6, 0], span: 4.5 },
   heck: { pos: [-11.5, 3.4, -0.8], target: [0, 1.6, 0], span: 1.8 },
@@ -119,21 +120,70 @@ function buildTruck() {
     truck.add(at(box(1.35, 0.72, 0.03, 0x121212), -1.0, BODY.bottom + 0.36, s * (BODY.halfWidth + 0.005)));
   }
 
-  // Heck: Leiter + Schlauchhaspel
+  // Heck: Aufstiegsleiter
   const ladderX = BODY.rear - 0.04;
   for (const dz of [-0.95, -0.65]) truck.add(at(box(0.04, 2.6, 0.05, ALU, { metalness: 0.6 }), ladderX, 1.75, dz));
   for (let y = 0.6; y < 3.0; y += 0.3) truck.add(at(box(0.04, 0.03, 0.32, ALU, { metalness: 0.6 }), ladderX, y, -0.8));
-  const haspel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 24),
-    new THREE.MeshStandardMaterial({ color: 0xc8261b, roughness: 0.7 }));
-  haspel.rotation.x = Math.PI / 2;
-  haspel.position.set(BODY.rear - 0.45, 0.62, 0.2);
-  truck.add(haspel);
 
-  // Dachleitern
-  for (const dz of [-0.35, -0.75]) truck.add(at(box(4.0, 0.05, 0.05, ALU, { metalness: 0.6 }), -1.0, BODY.top + 0.2, dz));
-  for (let x = -2.9; x < 0.9; x += 0.3) truck.add(at(box(0.03, 0.03, 0.44, ALU, { metalness: 0.6 }), x, BODY.top + 0.2, -0.55));
+  // Weitere antippbare Ziele ohne Rollladen (Schlauchhaspel, Dach)
+  const targets = [buildHaspel(truck), buildRoof(truck)];
+  return { truck, targets };
+}
 
-  return truck;
+// Ziel = Gruppe von Meshes mit gemeinsamem Material zum Aufleuchten + unsichtbare, großzügige Tippfläche
+function hitBox(id, w, h, d, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  m.position.set(x, y, z);
+  m.userData.compId = id;
+  return m;
+}
+
+function buildHaspel(truck) {
+  const x = BODY.rear - 0.5, z = 0.2, r = 0.45;
+  const red = new THREE.MeshStandardMaterial({ color: 0xd8311f, roughness: 0.6, emissive: 0x000000 });
+  const bag = new THREE.MeshStandardMaterial({ color: 0x9e1b12, roughness: 0.8, emissive: 0x000000 });
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.8, r * 0.8, 0.95, 24), bag);
+  drum.rotation.x = Math.PI / 2;
+  drum.position.set(x, r, z);
+  truck.add(drum);
+  for (const dz of [-0.52, 0.52]) {
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(r * 0.92, 0.05, 8, 28), red);
+    wheel.position.set(x, r, z + dz);
+    truck.add(wheel);
+  }
+  // Standrohr obenauf
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 10),
+    new THREE.MeshStandardMaterial({ color: ALU, metalness: 0.6, roughness: 0.3, emissive: 0x000000 }));
+  pipe.rotation.x = Math.PI / 2;
+  pipe.position.set(x, r * 1.85, z);
+  truck.add(pipe);
+  const hit = hitBox('Haspel', 1.1, 1.1, 1.3, x - 0.05, r + 0.05, z);
+  truck.add(hit);
+  return { id: 'Haspel', materials: [red, bag, pipe.material], hit };
+}
+
+function buildLadder(mat, length, width, x, y, z, rungStep = 0.28) {
+  const g = new THREE.Group();
+  for (const dz of [-width / 2, width / 2]) g.add(at(new THREE.Mesh(new THREE.BoxGeometry(length, 0.05, 0.05), mat), 0, 0, dz));
+  for (let rx = -length / 2 + 0.12; rx < length / 2; rx += rungStep) {
+    g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, width), mat), rx, 0, 0));
+  }
+  g.position.set(x, y, z);
+  return g;
+}
+
+function buildRoof(truck) {
+  const mat = new THREE.MeshStandardMaterial({ color: ALU, metalness: 0.6, roughness: 0.35, emissive: 0x000000 });
+  const top = BODY.top + 0.14;
+  // Schiebleiter (zwei Teile übereinander) links
+  truck.add(buildLadder(mat, 4.1, 0.5, -1.05, top, -0.6));
+  truck.add(buildLadder(mat, 3.7, 0.42, -1.1, top + 0.08, -0.6));
+  // 4-teilige Steckleiter rechts
+  for (let i = 0; i < 4; i++) truck.add(buildLadder(mat, 2.7, 0.36, -1.6, top + i * 0.07, 0.45, 0.28));
+  const hit = hitBox('Dach', BODY.front - BODY.rear - 0.3, 0.5, BODY.halfWidth * 2 - 0.1, (BODY.front + BODY.rear) / 2, BODY.top + 0.25, 0);
+  truck.add(hit);
+  return { id: 'Dach', materials: [mat], hit };
 }
 
 function buildShutter(def) {
@@ -188,15 +238,19 @@ export function createTruckView(container, { onPick } = {}) {
   ground.position.y = -0.001;
   scene.add(ground);
 
-  const truck = buildTruck();
+  const { truck, targets: extraTargets } = buildTruck();
   scene.add(truck);
 
+  // Alles Antippbare: Rollläden + Haspel + Dach
   const shutters = new Map();
+  const targets = new Map();
   for (const def of SHUTTERS) {
     const s = buildShutter(def);
     shutters.set(def.id, s);
     truck.add(s.group);
+    targets.set(def.id, { materials: [s.shutter.material], pick: s.shutter, flash: null });
   }
+  for (const t of extraTargets) targets.set(t.id, { materials: t.materials, pick: t.hit, flash: null });
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -235,9 +289,14 @@ export function createTruckView(container, { onPick } = {}) {
 
   // Kamera zu einem Fach fliegen lassen
   function focus(id) {
-    const def = SHUTTERS.find((d) => d.id === id);
-    if (!def) return;
+    const def = SHUTTERS.find((d) => d.id === id) || { side: id === 'Haspel' ? 0 : 'dach' };
     let pos, target;
+    if (def.side === 'dach') {
+      const v = VIEWS.dach;
+      flight = { t: 0, fromPos: camera.position.clone(), fromTarget: controls.target.clone(),
+        ...flyTo(new THREE.Vector3(...v.pos), new THREE.Vector3(...v.target), v.span) };
+      return;
+    }
     if (def.side === 0) {
       target = new THREE.Vector3(BODY.rear, 1.8, 0);
       pos = new THREE.Vector3(BODY.rear - 7.5, 2.6, 0.3);
@@ -265,7 +324,7 @@ export function createTruckView(container, { onPick } = {}) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects([...shutters.values()].map((s) => s.shutter), false);
+    const hits = raycaster.intersectObjects([...targets.values()].map((t) => t.pick), false);
     if (hits.length && onPick) onPick(hits[0].object.userData.compId);
   });
 
@@ -301,14 +360,16 @@ export function createTruckView(container, { onPick } = {}) {
     for (const s of shutters.values()) {
       s.open += (s.target - s.open) * Math.min(1, dt * 6);
       s.shutter.scale.y = Math.max(0.04, 1 - s.open * 0.96);
-      const em = s.shutter.material.emissive;
-      if (s.flash && now < s.flash.until) {
-        const pulse = 0.35 + 0.35 * Math.sin(now / 90);
-        em.setHex(s.flash.color).multiplyScalar(pulse);
-      } else if (s.flash) {
-        s.flash = null;
-        em.setHex(0x000000);
+    }
+    for (const t of targets.values()) {
+      if (!t.flash) continue;
+      const on = now < t.flash.until;
+      const pulse = 0.35 + 0.35 * Math.sin(now / 90);
+      for (const m of t.materials) {
+        if (on) m.emissive.setHex(t.flash.color).multiplyScalar(pulse);
+        else m.emissive.setHex(0x000000);
       }
+      if (!on) t.flash = null;
     }
     renderer.render(scene, camera);
   }
@@ -321,7 +382,7 @@ export function createTruckView(container, { onPick } = {}) {
     open(id) { const s = shutters.get(id); if (s) s.target = 1; },
     close(id) { const s = shutters.get(id); if (s) s.target = 0; },
     closeAll() { for (const s of shutters.values()) s.target = 0; },
-    flash(id, color, ms = 900) { const s = shutters.get(id); if (s) s.flash = { color, until: performance.now() + ms }; },
+    flash(id, color, ms = 900) { const t = targets.get(id); if (t) t.flash = { color, until: performance.now() + ms }; },
     setInterior(id, url) {
       const s = shutters.get(id);
       if (!s) return;

@@ -45,7 +45,7 @@ function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
 
 const compById = (id) => content.compartments.find((c) => c.id === id);
 const itemsIn = (compId) => content.items.filter((it) => it.locations.some((l) => l.c === compId));
-const playable = () => content.items.filter((it) => it.locations.some((l) => compById(l.c)?.image));
+const playable = () => content.items.filter((it) => it.locations.some((l) => compById(l.c)));
 
 async function imageUrl(compId) {
   const comp = compById(compId);
@@ -217,7 +217,12 @@ function renderControls() {
   const inPhoto = !$('#photo').classList.contains('hidden');
 
   if (!inPhoto) {
-    for (const [v, label] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts']]) {
+    if (game.phase === 'done') {
+      const last = game.mode === 'challenge' && game.round >= CHALLENGE_ROUNDS;
+      btn(last ? 'Ergebnis' : 'Weiter →', nextRound, 'primary');
+      return;
+    }
+    for (const [v, label] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts'], ['dach', 'Dach']]) {
       btn(label, () => { game.lastView = v; truck.setView(v); }, 'ghost');
     }
     if (game.mode === 'train' && game.phase === 'compartment') btn('Tipp', () => revealCompartment(true), 'ghost');
@@ -237,8 +242,11 @@ function renderControls() {
   }
 }
 
+// „in G3“, „auf dem Dach“ …
+const where = (compId) => compById(compId)?.where || `in ${compId}`;
+
 function sideName(compId) {
-  return { links: 'links', rechts: 'rechts', heck: 'am Heck' }[compById(compId)?.side] || '';
+  return { links: 'links', rechts: 'rechts', heck: 'am Heck', dach: 'auf dem Dach' }[compById(compId)?.side] || '';
 }
 
 function revealCompartment(asHint) {
@@ -247,7 +255,7 @@ function revealCompartment(asHint) {
   truck.flash(target, GREEN, 2400);
   if (asHint) {
     game.compTries = Math.max(game.compTries, 2);
-    toast(`Tipp: Es liegt ${sideName(target)} in <b>${target}</b>`);
+    toast(compById(target)?.where ? `Tipp: Es liegt <b>${where(target)}</b>` : `Tipp: Es liegt ${sideName(target)} in <b>${target}</b>`);
   }
 }
 
@@ -256,8 +264,10 @@ async function onCompartmentPick(compId) {
   const comp = compById(compId);
 
   if (game.mode === 'learn') {
-    if (!comp?.image) return toast(`${compId}: noch kein Foto vorhanden`);
-    return openCompartment(compId);
+    if (comp?.image) return openCompartment(compId);
+    const names = itemsIn(compId).map((it) => it.name);
+    truck.flash(compId, BLUE, 1500);
+    return toast(names.length ? `<b>${comp.name}</b>: ${names.join(', ')}` : `${compId}: noch kein Foto vorhanden`, 'hint');
   }
   if (game.phase !== 'compartment') return;
 
@@ -266,6 +276,7 @@ async function onCompartmentPick(compId) {
     const pts = game.compTries === 0 ? 100 : game.compTries === 1 ? 50 : 0;
     game.score += pts;
     if (pts) toast(`Richtig: ${compId} · +${pts}`, 'ok');
+    if (!comp.image) return finishWithoutPhoto(compId, pts);
     game.phase = 'item';
     updateHud();
     return openCompartment(compId);
@@ -274,15 +285,29 @@ async function onCompartmentPick(compId) {
   game.compTries++;
   vibrate(120);
   truck.flash(compId, RED_FLASH);
-  toast(`Nicht in ${compId}`, 'bad');
+  toast(`Nicht ${where(compId)}`, 'bad');
   if (game.compTries === 1) game.mistakes.push({ item: game.item, where: 'Fach' });
   const limit = game.mode === 'challenge' ? 3 : 2;
   if (game.compTries >= limit) {
     setTimeout(() => {
       revealCompartment(false);
-      toast(`Es liegt in <b>${game.item.locations[0].c}</b> – tippe es an`, 'hint');
+      toast(`Es liegt <b>${where(game.item.locations[0].c)}</b> – tippe es an`, 'hint');
     }, 700);
   }
+}
+
+// Ziele ohne Foto (Dach, Haspel): Das richtige Ziel zu finden reicht
+function finishWithoutPhoto(compId, pts) {
+  const secs = (performance.now() - game.roundStart) / 1000;
+  const bonus = game.mode === 'challenge' && pts ? Math.max(0, Math.round(100 - secs * 5)) : 0;
+  game.score += pts + bonus;
+  record(game.item.id, game.compTries === 0);
+  truck.flash(compId, GREEN, 1500);
+  vibrate(40);
+  toast(`✔ ${game.item.name} liegt ${where(compId)}${pts + bonus ? ` · +${pts + bonus}` : ''}`, 'ok');
+  game.phase = 'done';
+  updateHud();
+  renderControls();
 }
 
 async function openCompartment(compId) {

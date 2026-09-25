@@ -95,10 +95,11 @@ function renderItems() {
   list.replaceChildren(...items.map((it) => {
     const li = document.createElement('li');
     const n = loc(it).shapes.length;
-    li.className = (it.id === itemId ? 'active ' : '') + (n ? '' : 'empty');
+    const needsShape = Boolean(comp()?.image);
+    li.className = (it.id === itemId ? 'active ' : '') + (n || !needsShape ? '' : 'empty');
     li.innerHTML = '<span></span><small></small>';
     li.firstChild.textContent = it.name;
-    li.lastChild.textContent = n ? `${n} ▭` : 'kein Bereich';
+    li.lastChild.textContent = n ? `${n} ▭` : needsShape ? 'kein Bereich' : '';
     li.addEventListener('click', () => selectItem(it.id));
     return li;
   }));
