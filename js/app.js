@@ -5,6 +5,7 @@ import { createLeaderboard, nickname } from './leaderboard.js';
 
 const $ = (sel) => document.querySelector(sel);
 const RACE_SECONDS = 30;
+const RACE_PENALTY = 50; // Abzug fürs Überspringen oder Verpassen
 const GREEN = 0x22c55e, RED_FLASH = 0xef4444, BLUE = 0x3b82f6;
 
 // ---------- Statistik ----------
@@ -369,7 +370,8 @@ function raceMiss(msg) {
     return;
   }
   record(game.item.id, false);
-  toast(`Verpasst: ${game.item.name} liegt ${where(game.item.locations[0].c)}`, 'bad');
+  const lost = penalize();
+  toast(`Verpasst: ${game.item.name} liegt ${where(game.item.locations[0].c)}${lost ? ` · −${lost}` : ''}`, 'bad');
   game.phase = 'done';
   renderControls();
   raceNext(1400);
@@ -377,11 +379,21 @@ function raceMiss(msg) {
 
 $('#skip-btn').addEventListener('click', () => raceSkip());
 
+// Punktabzug, aber nie unter 0
+function penalize() {
+  const lost = Math.min(RACE_PENALTY, game.score);
+  game.score -= lost;
+  updateHud();
+  return lost;
+}
+
 function raceSkip() {
   if (!isRace() || game.over) return;
   if (game.phase === 'done') return;
   record(game.item.id, false);
   if (!game.mistakes.some((m) => m.item === game.item)) game.mistakes.push({ item: game.item });
+  const lost = penalize();
+  toast(`Übersprungen: ${game.item.name} liegt ${where(game.item.locations[0].c)}${lost ? ` · −${lost}` : ''}`, 'bad');
   game.phase = 'done';
   nextRound();
 }

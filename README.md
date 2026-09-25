@@ -4,7 +4,7 @@ Gerätekunde als Minispiel fürs Handy: Ein zufälliges Gerät wird angesagt, ma
 des HLF das richtige Fach und tippt das Gerät dann auf dem Foto des offenen Fachs an.
 
 - **Training**: mit Tipps, ohne Zeitdruck
-- **Wettkampf**: 30 Sekunden, so viele Geräte wie möglich; ein Fehlversuch pro Gerät (halbe Punkte), Überspringen möglich; seltene Geräte ×2, normale ×1,5; Bestenliste
+- **Wettkampf**: 30 Sekunden, so viele Geräte wie möglich; ein Fehlversuch pro Gerät (halbe Punkte), Überspringen oder Verpassen −50; seltene Geräte ×2, normale ×1,5; Bestenliste
 - **Lernmodus**: Fächer öffnen und anschauen
 - Geräte, die man oft falsch hat, kommen häufiger dran (Statistik bleibt lokal im Browser)
 - Als App installierbar (Homescreen) und offline nutzbar
