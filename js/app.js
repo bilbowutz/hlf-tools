@@ -479,8 +479,8 @@ function renderControls() {
 
   if (isRace()) {
     if (game.phase === 'done') return;
-    if (inPhoto) btn('← Fahrzeug', () => { game.phase = 'compartment'; backToTruck(); renderControls(); }, 'ghost');
-    else for (const [v, l] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts'], ['dach', 'Dach']]) {
+    // Im Wettkampf bleibt ein geöffnetes Fach offen – kein Zurück zum Fahrzeug
+    if (!inPhoto) for (const [v, l] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts'], ['dach', 'Dach']]) {
       btn(l, () => { game.lastView = v; truck.setView(v); }, 'ghost');
     }
     return;
