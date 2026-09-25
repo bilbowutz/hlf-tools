@@ -1,6 +1,7 @@
 import { loadMeta, deriveKey, fetchContent, fetchImageUrl, rememberKey, recallKey, forgetKey } from './crypto.js';
 import { createTruckView } from './truck.js';
 import { createPhotoView, hitTest } from './photo.js';
+import { createLeaderboard, nickname } from './leaderboard.js';
 
 const $ = (sel) => document.querySelector(sel);
 const CHALLENGE_ROUNDS = 10;
@@ -35,6 +36,7 @@ const imageUrls = new Map();
 let truck = null;
 let photo = null;
 let game = null;
+let board = null; // Rangliste, falls in der Beladeliste eingerichtet
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === id));
@@ -78,6 +80,7 @@ async function imageUrl(compId) {
 async function unlock(k) {
   content = await fetchContent(k);
   key = k;
+  board = content.leaderboard ? createLeaderboard(content.leaderboard) : null;
   $('#vehicle-name').textContent = content.vehicle.name;
   $('#vehicle-sub').textContent = content.vehicle.subtitle || '';
   renderHome();
@@ -187,7 +190,57 @@ function renderHome() {
     wrap.appendChild(det);
   }
   animateBars($('#screen-home'));
+  renderBoard();
 }
+
+// ---------- Rangliste ----------
+function renderBoardList(top) {
+  const me = nickname.get().toLowerCase();
+  const list = $('#board-list');
+  if (!top.length) {
+    list.replaceChildren(el('li', 'empty', 'Noch keine Einträge – spiel eine Challenge!'));
+    return;
+  }
+  list.replaceChildren(...top.map((r) => {
+    const li = el('li', r.nick.toLowerCase() === me ? 'me' : '');
+    li.append(el('span', '', r.nick), el('b', '', String(r.score)));
+    return li;
+  }));
+}
+
+let boardLoading = null;
+function renderBoard() {
+  $('#board-box').hidden = !board;
+  if (!board) return;
+  renderBoardList(board.cached());
+  if (boardLoading) return;
+  $('#board-status').textContent = 'lädt …';
+  boardLoading = board.top()
+    .then((top) => { renderBoardList(top); $('#board-status').textContent = ''; })
+    .catch(() => { $('#board-status').textContent = 'offline'; })
+    .finally(() => { boardLoading = null; });
+}
+
+$('#board-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!board || !game || game.submitted) return;
+  const nick = $('#nick').value.trim();
+  if (!nick) return;
+  const btn = $('#board-form button');
+  btn.disabled = true;
+  $('#board-msg').textContent = 'Wird eingetragen …';
+  try {
+    const { rank } = await board.submit(nick, game.score);
+    nickname.set(nick);
+    game.submitted = true;
+    $('#board-msg').textContent = rank ? `Eingetragen – du bist auf Platz ${rank}.` : 'Eingetragen.';
+    $('#nick').disabled = true;
+  } catch (err) {
+    $('#board-msg').textContent = err.name === 'AbortError' || err instanceof TypeError
+      ? 'Keine Verbindung – versuch es gleich nochmal.' : `Fehler: ${err.message}`;
+    btn.disabled = false;
+  }
+});
 
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => startGame(b.dataset.mode, b.dataset.variant)));
 
@@ -526,10 +579,16 @@ function showResult() {
     $('#result-title').textContent = 'Challenge beendet';
     $('#result-meta').textContent = `${CHALLENGE_ROUNDS} Geräte in ${time}${isBest ? ' · Neuer Highscore!' : ''}`;
     $('#result-again').hidden = false;
+    $('#board-form').hidden = !board;
+    $('#nick').value = nickname.get();
+    $('#nick').disabled = false;
+    $('#board-form button').disabled = false;
+    $('#board-msg').textContent = '';
   } else {
     $('#result-title').textContent = 'Alle Fehler korrigiert';
     $('#result-meta').textContent = `${game.round} Runden in ${time}`;
     $('#result-again').hidden = true;
+    $('#board-form').hidden = true;
   }
   const seen = new Set();
   const mistakes = game.mistakes.filter((m) => !seen.has(m.item.id) && seen.add(m.item.id));

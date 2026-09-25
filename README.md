@@ -33,6 +33,13 @@ Alternativ per Kommandozeile:
 node tools/encrypt.mjs --password '<PW>' --content beladung.json --images ordner-mit-fotos/
 ```
 
+## Rangliste (Challenge)
+
+Läuft über eine Google Tabelle mit Apps Script (`tools/leaderboard.gs`, Einrichtung steht oben in der Datei).
+Die Web-App-URL steht nur in der verschlüsselten Beladeliste (`leaderboard` in `content.enc`),
+eintragen können also nur Leute mit Passwort. Gespeichert werden nur Nickname, Punkte und Datum;
+pro Nickname zählt der beste Eintrag. Einträge löschen = Zeile in der Tabelle löschen.
+
 ## Technik
 
 Statische Seite ohne Build-Schritt (Vanilla JS, [three.js](https://threejs.org) liegt in `vendor/`).
@@ -45,4 +52,6 @@ Lokal testen: `python3 -m http.server` im Repo-Ordner, dann `http://localhost:80
 | `js/photo.js` | Foto-Ansicht mit Zoom und Hotspots |
 | `js/crypto.js` | Ver-/Entschlüsselung |
 | `js/admin.js` | Hotspot-Editor |
+| `js/leaderboard.js` | Rangliste (Client) |
+| `tools/leaderboard.gs` | Rangliste (Google Apps Script) |
 | `sw.js` | Offline-Cache |
