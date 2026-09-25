@@ -169,6 +169,10 @@ function renderHome() {
   const errBtn = $('#btn-errors');
   errBtn.textContent = n.bad ? `Fehler wiederholen (${n.bad})` : 'Fehler wiederholen – keine Fehler';
   errBtn.disabled = n.bad === 0;
+  const prioOpen = poolFor({ variant: 'prio' }).length;
+  const prioBtn = $('[data-variant=prio]');
+  prioBtn.textContent = prioOpen ? 'Wichtiges zuerst' : 'Alles gewusst';
+  prioBtn.disabled = prioOpen === 0;
   $('#highscore').textContent = stats.best ? `Dein Highscore im Einsatz: ${stats.best} Punkte` : '';
 
   const wrap = $('#comp-progress');
@@ -261,12 +265,12 @@ function poolFor(g) {
   const all = playable();
   if (g.variant === 'errors') return all.filter((it) => status(it.id) === 'bad');
   if (g.variant === 'prio') {
-    // Erst alle wichtigen, dann normale dazu, dann seltene
+    // Nur noch nicht gewusste: erst wichtige, dann normale, dann seltene
     for (const p of [1, 2, 3]) {
-      const upto = all.filter((it) => prio(it) <= p);
-      if (upto.some((it) => status(it.id) !== 'ok')) { g.level = p; return upto; }
+      const open = all.filter((it) => prio(it) === p && status(it.id) !== 'ok');
+      if (open.length) { g.level = p; return open; }
     }
-    g.level = 3;
+    return [];
   }
   return all;
 }
@@ -280,8 +284,7 @@ function pickItem() {
     const s = stats.items[it.id];
     const st = status(it.id);
     const w = st === 'new' ? 2 : st === 'bad' ? 3 + Math.min(s.w, 3) : Math.max(0.25, 1 - (s.streak || 1) * 0.25);
-    // Bei „Wichtiges zuerst“ die aktuelle Stufe bevorzugen
-    return game.variant === 'prio' && prio(it) === game.level ? w * 3 : w;
+    return w;
   });
   let r = Math.random() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
@@ -328,13 +331,17 @@ function updateHud() {
   const hud = $('#hud');
   if (game.mode === 'challenge') hud.textContent = `${Math.min(game.round, CHALLENGE_ROUNDS)}/${CHALLENGE_ROUNDS} · ${game.score} P`;
   else if (game.mode === 'train' && game.variant === 'errors') hud.textContent = `${poolFor(game).length} offen · ${game.score} P`;
+  else if (game.mode === 'train' && game.variant === 'prio') {
+    const n = poolFor({ variant: 'prio' }).length;
+    hud.textContent = `${n} ${PRIO_NAME[game.level]}e offen · ${game.score} P`;
+  }
   else if (game.mode === 'train') hud.textContent = `${game.score} P`;
   else hud.textContent = '';
 }
 
 function nextRound() {
   if (game.mode === 'challenge' && game.round >= CHALLENGE_ROUNDS) return showResult();
-  if (game.variant === 'errors' && !poolFor(game).length) return showResult();
+  if ((game.variant === 'errors' || game.variant === 'prio') && !poolFor(game).length) return showResult();
   const levelBefore = game.level;
   game.round++;
   const item = pickItem();
@@ -365,7 +372,7 @@ function backToTruck() {
 
 function isLastRound() {
   if (game.mode === 'challenge') return game.round >= CHALLENGE_ROUNDS;
-  return game.variant === 'errors' && !poolFor(game).length;
+  return (game.variant === 'errors' || game.variant === 'prio') && !poolFor(game).length;
 }
 
 function renderControls() {
@@ -602,7 +609,7 @@ function showResult() {
     $('#board-form button').disabled = false;
     $('#board-msg').textContent = '';
   } else {
-    $('#result-title').textContent = 'Alle Fehler korrigiert';
+    $('#result-title').textContent = game.variant === 'prio' ? 'Alles gewusst!' : 'Alle Fehler korrigiert';
     $('#result-meta').textContent = `${game.round} Runden in ${time}`;
     $('#result-again').hidden = true;
     $('#board-form').hidden = true;
