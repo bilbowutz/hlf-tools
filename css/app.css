@@ -119,6 +119,9 @@ button { font: inherit; color: inherit; }
 .dot-list { list-style: none; margin: 0; padding: 0 0 10px; }
 .dot-list li { display: flex; align-items: center; padding: 5px 0; font-size: 15px; }
 
+.img-status { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.img-status.err { color: var(--bad); }
+
 /* Erklärung */
 .mode-wrap { position: relative; display: flex; flex-direction: column; }
 .rules-btn {

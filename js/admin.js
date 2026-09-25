@@ -74,7 +74,7 @@ function updateDirty() {
 
 async function imageUrl(c) {
   if (!c?.image) return null;
-  if (!imageUrls.has(c.image)) imageUrls.set(c.image, fetchImageUrl(key, c.image).catch(() => null));
+  if (!imageUrls.has(c.image)) imageUrls.set(c.image, fetchImageUrl(key, c.image, c.rev).catch(() => null));
   return imageUrls.get(c.image);
 }
 
@@ -261,7 +261,9 @@ $('#photo-file').addEventListener('change', async (e) => {
   const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const imageId = c.image || c.id.toLowerCase();
-  if (c.image !== imageId) { c.image = imageId; markDirty(); }
+  c.image = imageId;
+  c.rev = (c.rev || 0) + 1; // neue Version → Handys laden das Foto neu
+  markDirty();
   pendingImages.set(imageId, await encrypt(key, bytes));
   imageUrls.set(imageId, Promise.resolve(URL.createObjectURL(blob)));
   const hasShapes = content.items.some((i) => loc(i)?.shapes.length);

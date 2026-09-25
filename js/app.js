@@ -1,4 +1,4 @@
-import { loadMeta, deriveKey, fetchContent, fetchImageUrl, rememberKey, recallKey, forgetKey } from './crypto.js';
+import { loadMeta, deriveKey, fetchContent, fetchImageUrl, imagePath, rememberKey, recallKey, forgetKey } from './crypto.js';
 import { createTruckView } from './truck.js';
 import { createPhotoView, hitTest } from './photo.js';
 import { createLeaderboard, nickname } from './leaderboard.js';
@@ -76,8 +76,56 @@ function el(tag, cls, text) {
 async function imageUrl(compId) {
   const comp = compById(compId);
   if (!comp?.image) return null;
-  if (!imageUrls.has(comp.image)) imageUrls.set(comp.image, fetchImageUrl(key, comp.image));
+  if (!imageUrls.has(comp.image)) {
+    const p = fetchImageUrl(key, comp.image, comp.rev);
+    // Fehlgeschlagenes Laden nicht merken, damit es beim nächsten Mal neu versucht wird
+    p.catch(() => imageUrls.delete(comp.image));
+    imageUrls.set(comp.image, p);
+  }
   return imageUrls.get(comp.image);
+}
+
+// Nach dem Entsperren alle Fotos laden, entschlüsseln und vorab dekodieren
+const decoded = [];
+let preloading = null;
+function preloadImages() {
+  if (preloading) return preloading;
+  const comps = content.compartments.filter((c) => c.image);
+  const status = $('#img-status');
+  let done = 0, failed = 0;
+  const show = () => {
+    status.hidden = false;
+    status.classList.toggle('err', failed > 0 && done + failed === comps.length);
+    status.textContent = failed && done + failed === comps.length
+      ? `${failed} Foto(s) konnten nicht geladen werden – Verbindung prüfen`
+      : `Fotos werden geladen … ${done} / ${comps.length}`;
+  };
+  show();
+  // Service Worker legt die (verschlüsselten) Fotos dauerhaft im Offline-Speicher ab
+  navigator.serviceWorker?.ready.then((reg) => reg.active?.postMessage({
+    type: 'precache', urls: comps.map((c) => imagePath(c.image, c.rev)),
+  })).catch(() => {});
+  preloading = Promise.allSettled(comps.map(async (c) => {
+    try {
+      const img = new Image();
+      img.src = await imageUrl(c.id);
+      await img.decode();
+      decoded.push(img);
+      done++;
+    } catch {
+      failed++;
+    }
+    show();
+  })).then(() => {
+    preloading = null;
+    if (failed) {
+      window.addEventListener('online', () => preloadImages(), { once: true });
+    } else {
+      status.textContent = 'Alle Fotos geladen – auch offline verfügbar';
+      setTimeout(() => { status.hidden = true; }, 3000);
+    }
+  });
+  return preloading;
 }
 
 // ---------- Login ----------
@@ -89,8 +137,7 @@ async function unlock(k) {
   $('#vehicle-sub').textContent = content.vehicle.subtitle || '';
   renderHome();
   showScreen('screen-home');
-  // Fotos im Hintergrund entschlüsseln (auch als Textur im 3D-Modell)
-  for (const c of content.compartments) imageUrl(c.id)?.catch(() => {});
+  preloadImages();
 }
 
 $('#lock-form').addEventListener('submit', async (e) => {
@@ -121,6 +168,8 @@ $('#logout').addEventListener('click', () => {
   key = null;
   content = null;
   imageUrls.clear();
+  decoded.length = 0;
+  $('#img-status').hidden = true;
   $('#password').value = '';
   showScreen('screen-lock');
 });
@@ -653,7 +702,21 @@ async function openCompartment(compId) {
   const g = game;
   const seq = ++openSeq;
   const stale = () => game !== g || g.over || seq !== openSeq;
-  const url = await imageUrl(compId);
+  // Falls das Foto noch nicht da ist, kurz Bescheid geben
+  const slow = setTimeout(() => { if (!stale()) toast('Foto wird geladen …'); }, 400);
+  let url;
+  try {
+    url = await imageUrl(compId);
+  } catch {
+    clearTimeout(slow);
+    if (stale()) return;
+    toast('Foto konnte nicht geladen werden – Verbindung prüfen', 'bad');
+    if (isRace() || game.mode === 'train') game.phase = 'compartment';
+    backToTruck();
+    renderControls();
+    return;
+  }
+  clearTimeout(slow);
   await new Promise((r) => setTimeout(r, isRace() ? 350 : 650));
   if (stale()) return;
   await photo.load(url);

@@ -48,8 +48,13 @@ export async function fetchContent(key, base = '') {
   return JSON.parse(new TextDecoder().decode(plain));
 }
 
-export async function fetchImageUrl(key, imageId, base = '') {
-  const plain = await fetchDecrypted(key, `${base}data/img/${imageId}.enc`);
+// Pfad eines Fotos; `rev` ändert sich, wenn das Foto ersetzt wird (neu laden statt Cache)
+export function imagePath(imageId, rev) {
+  return `data/img/${imageId}.enc${rev ? `?v=${rev}` : ''}`;
+}
+
+export async function fetchImageUrl(key, imageId, rev) {
+  const plain = await fetchDecrypted(key, imagePath(imageId, rev));
   return URL.createObjectURL(new Blob([plain], { type: 'image/jpeg' }));
 }
 
