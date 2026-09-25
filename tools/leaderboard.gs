@@ -14,7 +14,7 @@
  */
 
 var SHEET_NAME = 'Rangliste';
-var MAX_SCORE = 6000; // Wettkampf: 30 s, 100 Punkte pro Gerät × 2 (seltene) – großzügige Obergrenze
+var MAX_SCORE = 6000; // Wettkampf: 50 s, 100 Punkte pro Gerät × 2 (seltene) – großzügige Obergrenze
 var TOP_N = 10;
 
 function doGet(e) {

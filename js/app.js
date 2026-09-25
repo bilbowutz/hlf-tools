@@ -4,7 +4,7 @@ import { createPhotoView, hitTest } from './photo.js';
 import { createLeaderboard, nickname } from './leaderboard.js';
 
 const $ = (sel) => document.querySelector(sel);
-const RACE_SECONDS = 30;
+const RACE_SECONDS = 50;
 const RACE_PENALTY = 50; // Abzug fürs Überspringen oder Verpassen
 const GREEN = 0x22c55e, RED_FLASH = 0xef4444, BLUE = 0x3b82f6;
 
@@ -306,13 +306,31 @@ function startGame(mode, variant = 'mix') {
     backToTruck();
     renderControls();
     updateHud();
+  } else if (mode === 'challenge' && !introSeen()) {
+    // Beim ersten Mal erst die Regeln zeigen, die Uhr startet danach
+    setTask('Wettkampf', 'Gleich geht’s los');
+    backToTruck();
+    renderControls();
+    const g = game;
+    $('#intro').hidden = false;
+    $('#intro-go').onclick = () => {
+      $('#intro').hidden = true;
+      try { localStorage.setItem('hlf.raceIntro', '1'); } catch {}
+      if (game !== g) return;
+      nextRound();
+      startRace();
+    };
   } else {
     nextRound();
     if (mode === 'challenge') startRace();
   }
 }
 
-// ---------- Wettkampf: 30 Sekunden, so viele Geräte wie möglich ----------
+function introSeen() {
+  try { return localStorage.getItem('hlf.raceIntro') === '1'; } catch { return false; }
+}
+
+// ---------- Wettkampf: RACE_SECONDS lang so viele Geräte wie möglich ----------
 const isRace = () => game?.mode === 'challenge';
 
 function startRace() {

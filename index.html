@@ -66,7 +66,7 @@
         </div>
       </div>
       <button class="mode" data-mode="challenge">
-        <span><b>Wettkampf</b><small>30 Sekunden – finde so viele Geräte wie möglich</small></span>
+        <span><b>Wettkampf</b><small>50 Sekunden – finde so viele Geräte wie möglich</small></span>
       </button>
       <button class="mode" data-mode="learn">
         <span><b>Lernmodus</b><small>Fächer öffnen und in Ruhe anschauen</small></span>
@@ -136,6 +136,21 @@
       <button id="result-home" class="btn ghost">Zur Übersicht</button>
     </div>
   </section>
+
+  <!-- Erklärung beim ersten Wettkampf -->
+  <div id="intro" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-labelledby="intro-title">
+      <h2 id="intro-title">So läuft der Wettkampf</h2>
+      <ul>
+        <li><b>50 Sekunden</b> – finde so viele Geräte wie möglich.</li>
+        <li>Erst den richtigen <b>Rollladen</b> antippen, dann das Gerät im <b>Foto</b>.</li>
+        <li>Pro Gerät ist <b>ein Fehlversuch</b> erlaubt – dann gibt es nur die halben Punkte.</li>
+        <li>Zweiter Fehler oder <b>Überspringen</b>: −50 Punkte.</li>
+        <li>Normale Geräte zählen <b>×1,5</b>, seltene <b>×2</b>.</li>
+      </ul>
+      <button id="intro-go" class="btn primary">Los geht's</button>
+    </div>
+  </div>
 
   <script type="module" src="js/app.js"></script>
 </body>
