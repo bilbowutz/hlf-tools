@@ -1,0 +1,341 @@
+// Stilisiertes 3D-Modell des HLF (Scania-Fahrgestell, Magirus-Aufbau).
+// Koordinaten in Metern: +x = Fahrtrichtung, +y = oben, +z = rechte Fahrzeugseite (Beifahrer).
+
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const RED = 0xe0301e;
+const WHITE = 0xf1f1f1;
+const DARK = 0x1c1f24;
+const ALU = 0xc9ccd1;
+
+const BODY = { front: 1.2, rear: -3.35, bottom: 0.45, top: 2.95, halfWidth: 1.25 };
+const CAB = { front: 4.0, rear: 1.3, bottom: 0.62, top: 3.0 };
+const WHEELS = [{ x: 3.05, r: 0.52 }, { x: -1.0, r: 0.52 }];
+
+// Rollläden: Position entlang der Fahrzeuglänge (x1 vorne, x2 hinten) und Höhe.
+const SHUTTERS = [
+  { id: 'G1', side: -1, x1: 1.12, x2: -0.02, y1: 0.55, y2: 2.85 },
+  { id: 'G3', side: -1, x1: -0.1, x2: -1.9, y1: 1.2, y2: 2.85 },
+  { id: 'G5', side: -1, x1: -1.98, x2: -3.2, y1: 0.55, y2: 2.85 },
+  { id: 'G2', side: 1, x1: 1.12, x2: -0.02, y1: 0.55, y2: 2.85 },
+  { id: 'G4', side: 1, x1: -0.1, x2: -1.9, y1: 1.2, y2: 2.85 },
+  { id: 'G6', side: 1, x1: -1.98, x2: -3.2, y1: 0.55, y2: 2.85 },
+  { id: 'GR', side: 0, z1: -0.55, z2: 0.95, y1: 1.05, y2: 2.85 },
+];
+
+export const VIEWS = {
+  links: { pos: [0.2, 3.2, -10.5], target: [0.2, 1.6, 0], span: 4.5 },
+  rechts: { pos: [0.2, 3.2, 10.5], target: [0.2, 1.6, 0], span: 4.5 },
+  heck: { pos: [-11.5, 3.4, -0.8], target: [0, 1.6, 0], span: 1.8 },
+  start: { pos: [7.5, 4.8, -8.5], target: [0.2, 1.5, 0], span: 4.4 },
+};
+
+function shutterTexture(label) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#d4d7dc';
+  g.fillRect(0, 0, 256, 512);
+  for (let y = 0; y < 512; y += 16) {
+    g.fillStyle = '#b3b7bd'; g.fillRect(0, y + 12, 256, 3);
+    g.fillStyle = '#eceef1'; g.fillRect(0, y + 1, 256, 2);
+  }
+  g.fillStyle = '#9aa0a8';
+  g.fillRect(0, 470, 256, 42);
+  g.fillStyle = '#2a2e35';
+  g.font = 'bold 64px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.fillText(label, 128, 80);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function box(w, h, d, color, opts = {}) {
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: opts.roughness ?? 0.55, metalness: opts.metalness ?? 0.1 });
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  return m;
+}
+
+function at(mesh, x, y, z) { mesh.position.set(x, y, z); return mesh; }
+
+function buildTruck() {
+  const truck = new THREE.Group();
+  const W = BODY.halfWidth * 2;
+
+  // Aufbau
+  const bodyLen = BODY.front - BODY.rear;
+  truck.add(at(box(bodyLen, BODY.top - BODY.bottom, W, RED), (BODY.front + BODY.rear) / 2, (BODY.top + BODY.bottom) / 2, 0));
+  // Dachkante / Dachkasten
+  truck.add(at(box(bodyLen - 0.1, 0.12, W - 0.1, ALU, { metalness: 0.5 }), (BODY.front + BODY.rear) / 2, BODY.top + 0.06, 0));
+  // Warnstreifen
+  for (const s of [1, -1]) {
+    truck.add(at(box(bodyLen, 0.06, 0.02, 0xf4c20d), (BODY.front + BODY.rear) / 2, BODY.top - 0.05, s * (BODY.halfWidth + 0.005)));
+  }
+
+  // Fahrerhaus
+  const cabLen = CAB.front - CAB.rear;
+  const cab = at(box(cabLen, CAB.top - CAB.bottom, W, RED), (CAB.front + CAB.rear) / 2, (CAB.top + CAB.bottom) / 2, 0);
+  truck.add(cab);
+  truck.add(at(box(0.05, 0.9, W - 0.2, DARK, { roughness: 0.1, metalness: 0.6 }), CAB.front + 0.01, 2.35, 0)); // Frontscheibe
+  truck.add(at(box(0.06, 0.55, W - 0.4, 0x2b2f36), CAB.front + 0.01, 1.35, 0)); // Kühlergrill
+  truck.add(at(box(0.25, 0.35, W + 0.04, WHITE), CAB.front + 0.02, 0.75, 0)); // Stoßstange
+  for (const s of [1, -1]) {
+    truck.add(at(box(0.25, 0.14, 0.4, 0xfff6d5, { roughness: 0.2 }), CAB.front + 0.01, 1.0, s * 0.85)); // Scheinwerfer
+    truck.add(at(box(cabLen - 1.2, 0.7, 0.02, DARK, { roughness: 0.1, metalness: 0.6 }), CAB.front - 0.75, 2.3, s * (BODY.halfWidth + 0.005))); // Fenster vorne
+    truck.add(at(box(0.85, 0.6, 0.02, DARK, { roughness: 0.1, metalness: 0.6 }), CAB.rear + 0.6, 2.35, s * (BODY.halfWidth + 0.005))); // Fenster Mannschaft
+    truck.add(at(box(0.08, 0.35, 0.08, 0x111111), CAB.front - 0.2, 2.45, s * (BODY.halfWidth + 0.15))); // Spiegel
+    truck.add(at(box(cabLen, 0.05, 0.02, 0xf4c20d), (CAB.front + CAB.rear) / 2, 1.55, s * (BODY.halfWidth + 0.006)));
+  }
+  // Blaulichtbalken
+  truck.add(at(box(0.3, 0.12, W - 0.3, 0x1e5bff, { roughness: 0.2 }), CAB.front - 0.3, CAB.top + 0.07, 0));
+  // Lichtmast
+  truck.add(at(box(0.12, 0.9, 0.12, ALU, { metalness: 0.6 }), CAB.rear - 0.25, CAB.top + 0.45, 0.7));
+  truck.add(at(box(0.2, 0.2, 0.55, 0x444a52), CAB.rear - 0.25, CAB.top + 0.95, 0.7));
+
+  // Fahrgestell + Räder
+  truck.add(at(box(CAB.front - BODY.rear - 0.4, 0.3, W - 0.6, 0x222222), (CAB.front + BODY.rear) / 2, 0.55, 0));
+  const tireGeo = new THREE.CylinderGeometry(1, 1, 0.38, 28);
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: 0xbfc3c8, metalness: 0.7, roughness: 0.3 });
+  for (const wh of WHEELS) {
+    for (const s of [1, -1]) {
+      const tire = new THREE.Mesh(tireGeo, tireMat);
+      tire.scale.set(wh.r, 1, wh.r);
+      tire.rotation.x = Math.PI / 2;
+      tire.position.set(wh.x, wh.r, s * (BODY.halfWidth - 0.2));
+      truck.add(tire);
+      const rim = new THREE.Mesh(tireGeo, rimMat);
+      rim.scale.set(wh.r * 0.55, 0.4, wh.r * 0.55);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.set(wh.x, wh.r, s * (BODY.halfWidth - 0.03));
+      truck.add(rim);
+    }
+  }
+  // Radkasten im Aufbau (unter G3/G4 schwarz)
+  for (const s of [1, -1]) {
+    truck.add(at(box(1.35, 0.72, 0.03, 0x121212), -1.0, BODY.bottom + 0.36, s * (BODY.halfWidth + 0.005)));
+  }
+
+  // Heck: Leiter + Schlauchhaspel
+  const ladderX = BODY.rear - 0.04;
+  for (const dz of [-0.95, -0.65]) truck.add(at(box(0.04, 2.6, 0.05, ALU, { metalness: 0.6 }), ladderX, 1.75, dz));
+  for (let y = 0.6; y < 3.0; y += 0.3) truck.add(at(box(0.04, 0.03, 0.32, ALU, { metalness: 0.6 }), ladderX, y, -0.8));
+  const haspel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 24),
+    new THREE.MeshStandardMaterial({ color: 0xc8261b, roughness: 0.7 }));
+  haspel.rotation.x = Math.PI / 2;
+  haspel.position.set(BODY.rear - 0.45, 0.62, 0.2);
+  truck.add(haspel);
+
+  // Dachleitern
+  for (const dz of [-0.35, -0.75]) truck.add(at(box(4.0, 0.05, 0.05, ALU, { metalness: 0.6 }), -1.0, BODY.top + 0.2, dz));
+  for (let x = -2.9; x < 0.9; x += 0.3) truck.add(at(box(0.03, 0.03, 0.44, ALU, { metalness: 0.6 }), x, BODY.top + 0.2, -0.55));
+
+  return truck;
+}
+
+function buildShutter(def) {
+  const width = def.side === 0 ? Math.abs(def.z1 - def.z2) : Math.abs(def.x1 - def.x2);
+  const height = def.y2 - def.y1;
+  const group = new THREE.Group();
+
+  // Innenraum (dunkel, wird mit dem Foto belegt, sobald es geladen ist)
+  const inner = new THREE.Mesh(new THREE.PlaneGeometry(width, height),
+    new THREE.MeshBasicMaterial({ color: 0x0e1014 }));
+  inner.position.set(0, height / 2, -0.04);
+  group.add(inner);
+
+  // Rollladen: Ursprung an der Oberkante, damit er beim Öffnen nach oben „einrollt"
+  const geo = new THREE.BoxGeometry(width, height, 0.03);
+  geo.translate(0, -height / 2, 0);
+  const mat = new THREE.MeshStandardMaterial({ map: shutterTexture(def.id), roughness: 0.45, metalness: 0.35, emissive: 0x000000 });
+  const shutter = new THREE.Mesh(geo, mat);
+  shutter.position.y = height;
+  shutter.userData.compId = def.id;
+  group.add(shutter);
+
+  if (def.side === 0) {
+    group.position.set(BODY.rear - 0.02, def.y1, (def.z1 + def.z2) / 2);
+    group.rotation.y = -Math.PI / 2;
+  } else {
+    group.position.set((def.x1 + def.x2) / 2, def.y1, def.side * (BODY.halfWidth + 0.02));
+    group.rotation.y = def.side === 1 ? 0 : Math.PI;
+  }
+  return { group, shutter, inner, width, height, open: 0, target: 0, flash: null };
+}
+
+export function createTruckView(container, { onPick } = {}) {
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  container.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445066, 1.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+  sun.position.set(6, 10, 4);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.8);
+  fill.position.set(-6, 5, -6);
+  scene.add(fill);
+
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(9, 48),
+    new THREE.MeshStandardMaterial({ color: 0x7c7f86, roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.001;
+  scene.add(ground);
+
+  const truck = buildTruck();
+  scene.add(truck);
+
+  const shutters = new Map();
+  for (const def of SHUTTERS) {
+    const s = buildShutter(def);
+    shutters.set(def.id, s);
+    truck.add(s.group);
+  }
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.minDistance = 6;
+  controls.maxDistance = 26;
+  controls.maxPolarAngle = Math.PI * 0.49;
+  controls.minPolarAngle = Math.PI * 0.12;
+
+  // Abstand so wählen, dass `span` Meter links/rechts der Bildmitte sichtbar sind
+  function fitDistance(span, base) {
+    const vHalf = THREE.MathUtils.degToRad(camera.fov / 2);
+    const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+    return Math.max(base, (span / Math.tan(Math.min(vHalf, hHalf))) * 1.05);
+  }
+
+  function flyTo(toPos, toTarget, span) {
+    const dir = toPos.clone().sub(toTarget);
+    dir.setLength(fitDistance(span, dir.length()));
+    return { toPos: toTarget.clone().add(dir), toTarget };
+  }
+
+  let flight = null;
+  function setView(name, instant = false) {
+    const v = VIEWS[name];
+    if (!v) return;
+    const { toPos, toTarget } = flyTo(new THREE.Vector3(...v.pos), new THREE.Vector3(...v.target), v.span);
+    if (instant) {
+      camera.position.copy(toPos);
+      controls.target.copy(toTarget);
+      controls.update();
+      return;
+    }
+    flight = { t: 0, fromPos: camera.position.clone(), fromTarget: controls.target.clone(), toPos, toTarget };
+  }
+
+  // Kamera zu einem Fach fliegen lassen
+  function focus(id) {
+    const def = SHUTTERS.find((d) => d.id === id);
+    if (!def) return;
+    let pos, target;
+    if (def.side === 0) {
+      target = new THREE.Vector3(BODY.rear, 1.8, 0);
+      pos = new THREE.Vector3(BODY.rear - 7.5, 2.6, 0.3);
+    } else {
+      const x = (def.x1 + def.x2) / 2;
+      target = new THREE.Vector3(x, 1.7, def.side * BODY.halfWidth);
+      pos = new THREE.Vector3(x - 0.6, 2.4, def.side * 7.5);
+    }
+    const fit = flyTo(pos, target, 1.4);
+    flight = { t: 0, fromPos: camera.position.clone(), fromTarget: controls.target.clone(), ...fit };
+  }
+
+  // Tippen erkennen (nicht beim Drehen)
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  let down = null;
+  let enabled = true;
+  renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  renderer.domElement.addEventListener('pointerup', (e) => {
+    if (!down || !enabled) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+    const dt = performance.now() - down.t;
+    down = null;
+    if (moved > 8 || dt > 600) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects([...shutters.values()].map((s) => s.shutter), false);
+    if (hits.length && onPick) onPick(hits[0].object.userData.compId);
+  });
+
+  function resize() {
+    const { clientWidth: w, clientHeight: h } = container;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    // Im Hochformat weiter weg, damit das ganze Fahrzeug passt
+    camera.fov = w / h < 0.8 ? 50 : 40;
+    camera.updateProjectionMatrix();
+  }
+  const ro = new ResizeObserver(resize);
+  ro.observe(container);
+  resize();
+  setView('start', true);
+
+  const clock = new THREE.Clock();
+  let running = true;
+  function tick() {
+    if (!running) return;
+    requestAnimationFrame(tick);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    if (flight) {
+      flight.t = Math.min(1, flight.t + dt * 1.6);
+      const k = 1 - Math.pow(1 - flight.t, 3);
+      camera.position.lerpVectors(flight.fromPos, flight.toPos, k);
+      controls.target.lerpVectors(flight.fromTarget, flight.toTarget, k);
+      if (flight.t >= 1) flight = null;
+    }
+    controls.update();
+    const now = performance.now();
+    for (const s of shutters.values()) {
+      s.open += (s.target - s.open) * Math.min(1, dt * 6);
+      s.shutter.scale.y = Math.max(0.04, 1 - s.open * 0.96);
+      const em = s.shutter.material.emissive;
+      if (s.flash && now < s.flash.until) {
+        const pulse = 0.35 + 0.35 * Math.sin(now / 90);
+        em.setHex(s.flash.color).multiplyScalar(pulse);
+      } else if (s.flash) {
+        s.flash = null;
+        em.setHex(0x000000);
+      }
+    }
+    renderer.render(scene, camera);
+  }
+  tick();
+
+  return {
+    setView,
+    focus,
+    setEnabled(v) { enabled = v; },
+    open(id) { const s = shutters.get(id); if (s) s.target = 1; },
+    close(id) { const s = shutters.get(id); if (s) s.target = 0; },
+    closeAll() { for (const s of shutters.values()) s.target = 0; },
+    flash(id, color, ms = 900) { const s = shutters.get(id); if (s) s.flash = { color, until: performance.now() + ms }; },
+    setInterior(id, url) {
+      const s = shutters.get(id);
+      if (!s) return;
+      new THREE.TextureLoader().load(url, (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        s.inner.material = new THREE.MeshBasicMaterial({ map: tex });
+      });
+    },
+    dispose() {
+      running = false;
+      ro.disconnect();
+      controls.dispose();
+      renderer.dispose();
+      renderer.domElement.remove();
+    },
+  };
+}

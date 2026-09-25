@@ -1,0 +1,33 @@
+.admin #admin-main { gap: 16px; max-width: 1200px; margin: 0 auto; }
+.admin-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.admin-head h1 { font-size: 22px; }
+.admin-head a { text-decoration: none; display: inline-flex; align-items: center; }
+.help ol { padding-left: 20px; margin: 8px 0; }
+.help summary { cursor: pointer; font-weight: 600; }
+.admin-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .admin-grid { grid-template-columns: 340px 1fr; } }
+.panel { display: flex; flex-direction: column; gap: 12px; }
+.panel h2 { font-size: 15px; margin-top: 8px; }
+.panel label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+.panel select, .panel input:not([type=file]) {
+  font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text);
+}
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row select { flex: 1; min-width: 160px; }
+.file-btn { display: inline-flex; align-items: center; cursor: pointer; color: var(--text) !important; flex-direction: row !important; font-size: 14px !important; }
+.item-list { list-style: none; margin: 0; padding: 0; max-height: 45vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.item-list li { padding: 10px 12px; border-top: 1px solid var(--line); cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
+.item-list li:first-child { border-top: 0; }
+.item-list li.active { background: rgb(200 38 27 / .12); font-weight: 600; }
+.item-list li small { color: var(--muted); }
+.item-list li.empty small { color: var(--bad); }
+.editor-wrap { background: #000; border-radius: var(--radius); overflow: hidden; display: flex; justify-content: center; align-items: flex-start; align-self: start; }
+.editor { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; max-width: 100%; }
+.editor > p { color: #aaa; padding: 40px; }
+.editor img { display: block; max-width: 100%; max-height: 80vh; pointer-events: none; }
+.editor svg { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+.editor rect { vector-effect: non-scaling-stroke; stroke-width: 2px; fill: rgb(96 165 250 / .12); stroke: #60a5fa; cursor: pointer; }
+.editor rect.mine { fill: rgb(250 204 21 / .25); stroke: #facc15; stroke-width: 3px; }
+.editor rect.selected { fill: rgb(239 68 68 / .3); stroke: #ef4444; stroke-width: 3px; }
+.editor rect.draft { fill: rgb(250 204 21 / .2); stroke: #facc15; stroke-dasharray: 6 4; }
+.save .row { margin-top: 8px; }

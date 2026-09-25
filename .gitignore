@@ -1,0 +1,11 @@
+# Klartext-Fotos und -Daten gehören NICHT ins Repo – nur die .enc-Dateien in data/
+fotos/
+*.jpg
+*.jpeg
+*.JPG
+*.JPEG
+*.heic
+*.HEIC
+hlf-beladung.json
+content.json
+node_modules/

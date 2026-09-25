@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#c8261b">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>HLF-Trainer</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js", "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js" } }
+  </script>
+</head>
+<body>
+  <!-- Passwort -->
+  <section id="screen-lock" class="screen">
+    <div class="lock">
+      <img src="icons/icon.svg" alt="" class="lock-icon">
+      <h1>HLF-Trainer</h1>
+      <p class="muted">Gerätekunde als Minispiel</p>
+      <form id="lock-form" autocomplete="on">
+        <input type="text" name="username" value="hlf" autocomplete="username" hidden>
+        <input id="password" type="password" placeholder="Passwort" autocomplete="current-password" required>
+        <button class="btn primary" type="submit">Entsperren</button>
+        <p id="lock-error" class="error" role="alert"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- Start -->
+  <section id="screen-home" class="screen">
+    <header class="home-head">
+      <div>
+        <h1 id="vehicle-name">HLF</h1>
+        <p id="vehicle-sub" class="muted"></p>
+      </div>
+      <button id="logout" class="btn ghost small" title="Abmelden">Abmelden</button>
+    </header>
+
+    <div class="modes">
+      <button class="mode" data-mode="train">
+        <span class="mode-icon">🎯</span>
+        <span><b>Training</b><small>Gerät suchen – mit Tipps, ohne Zeitdruck</small></span>
+      </button>
+      <button class="mode" data-mode="challenge">
+        <span class="mode-icon">⏱️</span>
+        <span><b>Challenge</b><small>10 Geräte auf Zeit – knack den Highscore</small></span>
+      </button>
+      <button class="mode" data-mode="learn">
+        <span class="mode-icon">📖</span>
+        <span><b>Lernmodus</b><small>Fächer öffnen und in Ruhe anschauen</small></span>
+      </button>
+    </div>
+
+    <div class="stats">
+      <div><b id="stat-items">–</b><small>Geräte</small></div>
+      <div><b id="stat-rate">–</b><small>Trefferquote</small></div>
+      <div><b id="stat-best">–</b><small>Highscore</small></div>
+    </div>
+
+    <div id="hard-box" class="card" hidden>
+      <h2>Übe diese nochmal</h2>
+      <ul id="hard-list" class="list"></ul>
+    </div>
+
+    <button id="reset-stats" class="link">Statistik zurücksetzen</button>
+  </section>
+
+  <!-- Spiel -->
+  <section id="screen-game" class="screen">
+    <header class="bar">
+      <button id="game-back" class="icon-btn" aria-label="Zurück">←</button>
+      <span id="mode-label"></span>
+      <span id="hud"></span>
+    </header>
+    <div class="task">
+      <small id="task-label"></small>
+      <strong id="task-name"></strong>
+    </div>
+    <div class="stage">
+      <div id="truck" class="layer"></div>
+      <div id="photo" class="layer hidden"></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+    <footer id="controls" class="controls"></footer>
+  </section>
+
+  <!-- Ergebnis -->
+  <section id="screen-result" class="screen">
+    <div class="result">
+      <p class="muted">Challenge beendet</p>
+      <div id="result-score" class="big-score">0</div>
+      <p id="result-meta" class="muted"></p>
+      <div id="result-mistakes-box" class="card">
+        <h2>Hier hast du dich vertan</h2>
+        <ul id="result-mistakes" class="list"></ul>
+      </div>
+      <button id="result-again" class="btn primary">Nochmal</button>
+      <button id="result-home" class="btn ghost">Zur Übersicht</button>
+    </div>
+  </section>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

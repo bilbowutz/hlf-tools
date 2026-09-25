@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>HLF-Trainer · Admin</title>
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin">
+  <section id="admin-lock" class="screen active">
+    <div class="lock">
+      <h1>Admin</h1>
+      <p class="muted">Fotos verschlüsseln &amp; Hotspots bearbeiten</p>
+      <form id="admin-lock-form">
+        <input id="admin-password" type="password" placeholder="Passwort" autocomplete="current-password" required>
+        <button class="btn primary" type="submit">Anmelden</button>
+        <p id="admin-error" class="error"></p>
+      </form>
+    </div>
+  </section>
+
+  <section id="admin-main" class="screen">
+    <header class="admin-head">
+      <h1>HLF-Trainer · Admin</h1>
+      <a href="./" class="btn ghost small">Zur App</a>
+    </header>
+
+    <details class="card help">
+      <summary>So funktioniert's</summary>
+      <ol>
+        <li>Fach wählen. Neues Foto? → „Foto ersetzen“ (wird hier im Browser verkleinert und verschlüsselt).</li>
+        <li>Gerät in der Liste auswählen oder neu anlegen, dann auf dem Foto ein Rechteck um das Gerät <b>ziehen</b>.</li>
+        <li>Rechteck antippen = auswählen, „Rechteck löschen“ entfernt es.</li>
+        <li>Unten „Dateien herunterladen“ → auf GitHub unter <code>data/</code> (Fotos nach <code>data/img/</code>) per <i>Add file → Upload files</i> hochladen.</li>
+      </ol>
+      <p class="muted">Nur <code>.enc</code>-Dateien hochladen – nie die Original-Fotos.</p>
+    </details>
+
+    <div class="admin-grid">
+      <div class="panel">
+        <label>Fach
+          <select id="comp-select"></select>
+        </label>
+        <div class="row">
+          <label class="btn ghost small file-btn">Foto ersetzen<input id="photo-file" type="file" accept="image/*" hidden></label>
+          <button id="comp-add" class="btn ghost small">Fach anlegen</button>
+        </div>
+
+        <h2>Geräte in diesem Fach</h2>
+        <ul id="item-list" class="item-list"></ul>
+        <div class="row">
+          <button id="item-new" class="btn ghost small">+ Neues Gerät</button>
+          <select id="item-existing"><option value="">+ vorhandenes Gerät …</option></select>
+        </div>
+
+        <div id="item-edit" class="card" hidden>
+          <label>Name <input id="item-name"></label>
+          <p class="muted" id="item-where"></p>
+          <div class="row">
+            <button id="rect-delete" class="btn ghost small" disabled>Rechteck löschen</button>
+            <button id="item-remove" class="btn ghost small">Aus Fach entfernen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-wrap">
+        <div id="editor" class="editor"><p class="muted">Kein Foto für dieses Fach.</p></div>
+      </div>
+    </div>
+
+    <div class="card save">
+      <h2>Speichern</h2>
+      <p id="dirty" class="muted">Keine Änderungen.</p>
+      <div class="row">
+        <button id="download" class="btn primary">Dateien herunterladen</button>
+        <button id="json-export" class="btn ghost small">JSON-Backup</button>
+        <label class="btn ghost small file-btn">JSON laden<input id="json-import" type="file" accept="application/json" hidden></label>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
