@@ -312,19 +312,27 @@ function startGame(mode, variant = 'mix') {
     backToTruck();
     renderControls();
     const g = game;
-    $('#intro').hidden = false;
-    $('#intro-go').onclick = () => {
-      $('#intro').hidden = true;
+    showIntro("Los geht's", () => {
       try { localStorage.setItem('hlf.raceIntro', '1'); } catch {}
       if (game !== g) return;
       nextRound();
       startRace();
-    };
+    });
   } else {
     nextRound();
     if (mode === 'challenge') startRace();
   }
 }
+
+function showIntro(buttonText, onClose) {
+  $('#intro-go').textContent = buttonText;
+  $('#intro').hidden = false;
+  $('#intro-go').onclick = () => {
+    $('#intro').hidden = true;
+    onClose?.();
+  };
+}
+$('#rules-btn').addEventListener('click', () => showIntro('Verstanden'));
 
 function introSeen() {
   try { return localStorage.getItem('hlf.raceIntro') === '1'; } catch { return false; }
