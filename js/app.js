@@ -322,6 +322,7 @@ function rebuildTruck() {
   if (!game) return;
   truck.setView(game.mode === 'learn' ? 'start' : (game.lastView || 'start'), true);
   truck.setEnabled($('#photo').classList.contains('hidden'));
+  if (isRace() && !game.over && game.timer) truck.setSirens(true);
 }
 
 function ensureViews() {
@@ -413,6 +414,7 @@ function startRace() {
   game.endsAt = performance.now() + RACE_SECONDS * 1000;
   $('#race-bar').hidden = false;
   $('#skip-btn').hidden = false;
+  truck.setSirens(true);
   game.timer = setInterval(tickRace, 200);
   tickRace();
 }
@@ -434,6 +436,7 @@ function stopRace() {
   if (game?.timer) clearInterval(game.timer);
   $('#race-bar').hidden = true;
   $('#skip-btn').hidden = true;
+  truck?.setSirens(false);
 }
 
 // Nach kurzer Pause nächstes Gerät – nur wenn noch dasselbe, laufende Spiel

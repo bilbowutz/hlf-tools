@@ -90,8 +90,21 @@ function buildTruck() {
     truck.add(at(box(0.08, 0.35, 0.08, 0x111111), CAB.front - 0.2, 2.45, s * (BODY.halfWidth + 0.15))); // Spiegel
     truck.add(at(box(cabLen, 0.05, 0.02, 0xf4c20d), (CAB.front + CAB.rear) / 2, 1.55, s * (BODY.halfWidth + 0.006)));
   }
-  // Blaulichtbalken
-  truck.add(at(box(0.3, 0.12, W - 0.3, 0x1e5bff, { roughness: 0.2 }), CAB.front - 0.3, CAB.top + 0.07, 0));
+  // Blaulichter: zwei Gruppen (links/rechts), die im Wettkampf abwechselnd blitzen
+  const beacons = [];
+  const beacon = (group, w, h, d, x, y, z) => {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x1a3a9e, roughness: 0.2, emissive: 0x000000, emissiveIntensity: 3 });
+    const m = at(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat), x, y, z);
+    truck.add(m);
+    beacons.push({ group, mat });
+  };
+  const barW = (W - 0.3) / 2;
+  beacon(0, 0.3, 0.12, barW - 0.02, CAB.front - 0.3, CAB.top + 0.07, -barW / 2); // Dachbalken links
+  beacon(1, 0.3, 0.12, barW - 0.02, CAB.front - 0.3, CAB.top + 0.07, barW / 2); // Dachbalken rechts
+  beacon(0, 0.04, 0.08, 0.22, CAB.front + 0.04, 1.35, -0.55); // Frontblitzer
+  beacon(1, 0.04, 0.08, 0.22, CAB.front + 0.04, 1.35, 0.55);
+  beacon(0, 0.12, 0.14, 0.14, BODY.rear + 0.02, BODY.top - 0.1, -1.1); // Heck
+  beacon(1, 0.12, 0.14, 0.14, BODY.rear + 0.02, BODY.top - 0.1, 1.1);
   // Lichtmast
   truck.add(at(box(0.12, 0.9, 0.12, ALU, { metalness: 0.6 }), CAB.rear - 0.25, CAB.top + 0.45, 0.7));
   truck.add(at(box(0.2, 0.2, 0.55, 0x444a52), CAB.rear - 0.25, CAB.top + 0.95, 0.7));
@@ -127,7 +140,7 @@ function buildTruck() {
 
   // Weitere antippbare Ziele ohne Rollladen (Schlauchhaspel, Dach)
   const targets = [buildHaspel(truck), buildRoof(truck)];
-  return { truck, targets };
+  return { truck, targets, beacons };
 }
 
 // Ziel = Gruppe von Meshes mit gemeinsamem Material zum Aufleuchten + unsichtbare, großzügige Tippfläche
@@ -244,7 +257,12 @@ export function createTruckView(container, { onPick, onLost } = {}) {
   ground.position.y = -0.001;
   scene.add(ground);
 
-  const { truck, targets: extraTargets } = buildTruck();
+  const { truck, targets: extraTargets, beacons } = buildTruck();
+  // Blauer Lichtschein aufs Fahrzeug und den Boden, wenn die Blaulichter an sind
+  const glow = new THREE.PointLight(0x3a66ff, 0, 12, 1.5);
+  glow.position.set(CAB.front - 0.3, CAB.top + 0.6, 0);
+  truck.add(glow);
+  let sirens = false;
   scene.add(truck);
 
   // Alles Antippbare: Rollläden + Haspel + Dach
@@ -391,6 +409,13 @@ export function createTruckView(container, { onPick, onLost } = {}) {
       }
       if (!on) t.flash = null;
     }
+    // Doppelblitz: erst Gruppe 0 zweimal, dann Gruppe 1 zweimal
+    if (sirens) {
+      const t = now % 700;
+      const on = [t < 70 || (t >= 140 && t < 210), (t >= 350 && t < 420) || (t >= 490 && t < 560)];
+      for (const b of beacons) b.mat.emissive.setHex(on[b.group] ? 0x3a6cff : 0x000000);
+      glow.intensity = on[0] || on[1] ? 25 : 0;
+    }
     renderer.render(scene, camera);
   }
   tick();
@@ -399,6 +424,13 @@ export function createTruckView(container, { onPick, onLost } = {}) {
     setView,
     focus,
     setEnabled(v) { enabled = v; },
+    setSirens(on) {
+      sirens = on;
+      if (!on) {
+        for (const b of beacons) b.mat.emissive.setHex(0x000000);
+        glow.intensity = 0;
+      }
+    },
     open(id) { const s = shutters.get(id); if (s) s.target = 1; },
     close(id) { const s = shutters.get(id); if (s) s.target = 0; },
     closeAll() { for (const s of shutters.values()) s.target = 0; },
@@ -460,7 +492,7 @@ export function createFallbackView(container, { onPick } = {}) {
   container.appendChild(root);
   return {
     isFallback: true,
-    setView() {}, focus() {}, open() {}, close() {}, closeAll() {}, setInterior() {},
+    setView() {}, focus() {}, setSirens() {}, open() {}, close() {}, closeAll() {}, setInterior() {},
     setEnabled(v) { enabled = v; },
     flash(id, color) {
       const b = buttons.get(id);
