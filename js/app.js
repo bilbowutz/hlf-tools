@@ -54,6 +54,9 @@ function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
 const compById = (id) => content.compartments.find((c) => c.id === id);
 const itemsIn = (compId) => content.items.filter((it) => it.locations.some((l) => l.c === compId));
 const playable = () => content.items.filter((it) => it.locations.some((l) => compById(l.c)));
+const prio = (it) => it.prio || 2;
+const PRIO_NAME = { 1: 'wichtig', 2: 'normal', 3: 'selten' };
+const VARIANT_NAME = { mix: 'Gemischt', prio: 'Wichtiges zuerst', errors: 'Fehler wiederholen' };
 const label = (it) => (it.count > 1 ? `${it.count}× ${it.name}` : it.name);
 const COMP_ORDER = ['G1', 'G3', 'G5', 'G2', 'G4', 'G6', 'Haspel', 'Dach', 'GR'];
 
@@ -154,6 +157,12 @@ function renderHome() {
   $('#prog-bad').textContent = n.bad;
   $('#prog-new').textContent = n.new;
   $('#prog-bar').replaceWith(Object.assign(segBar(n, items.length, 'segbar big'), { id: 'prog-bar' }));
+  const important = items.filter((it) => prio(it) === 1);
+  const importantOk = important.filter((it) => status(it.id) === 'ok').length;
+  $('#prog-prio').textContent = important.length ? `Wichtige Geräte: ${importantOk} von ${important.length} gewusst` : '';
+  const errBtn = $('#btn-errors');
+  errBtn.textContent = n.bad ? `Fehler wiederholen (${n.bad})` : 'Fehler wiederholen – keine Fehler';
+  errBtn.disabled = n.bad === 0;
   $('#highscore').textContent = stats.best ? `Highscore Challenge: ${stats.best} Punkte` : '';
 
   const wrap = $('#comp-progress');
@@ -180,7 +189,7 @@ function renderHome() {
   animateBars($('#screen-home'));
 }
 
-document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => startGame(b.dataset.mode)));
+document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => startGame(b.dataset.mode, b.dataset.variant)));
 
 // ---------- Spiel ----------
 function ensureViews() {
@@ -191,28 +200,45 @@ function ensureViews() {
   if (!photo) photo = createPhotoView($('#photo'), { onTap: onPhotoTap });
 }
 
+// Welche Geräte kommen in dieser Variante in Frage?
+function poolFor(g) {
+  const all = playable();
+  if (g.variant === 'errors') return all.filter((it) => status(it.id) === 'bad');
+  if (g.variant === 'prio') {
+    // Erst alle wichtigen, dann normale dazu, dann seltene
+    for (const p of [1, 2, 3]) {
+      const upto = all.filter((it) => prio(it) <= p);
+      if (upto.some((it) => status(it.id) !== 'ok')) { g.level = p; return upto; }
+    }
+    g.level = 3;
+  }
+  return all;
+}
+
 function pickItem() {
-  const recent = game.recent;
-  const pool = playable().filter((it) => !recent.includes(it.id));
+  const all = poolFor(game);
+  let pool = all.filter((it) => !game.recent.includes(it.id));
+  if (!pool.length) pool = all;
   // Offene und falsche Geräte kommen öfter dran, sicher gewusste seltener
   const weights = pool.map((it) => {
     const s = stats.items[it.id];
     const st = status(it.id);
-    if (st === 'new') return 2;
-    if (st === 'bad') return 3 + Math.min(s.w, 3);
-    return Math.max(0.25, 1 - (s.streak || 1) * 0.25);
+    const w = st === 'new' ? 2 : st === 'bad' ? 3 + Math.min(s.w, 3) : Math.max(0.25, 1 - (s.streak || 1) * 0.25);
+    // Bei „Wichtiges zuerst“ die aktuelle Stufe bevorzugen
+    return game.variant === 'prio' && prio(it) === game.level ? w * 3 : w;
   });
   let r = Math.random() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
   return pool[pool.length - 1];
 }
 
-function startGame(mode) {
-  game = { mode, round: 0, score: 0, recent: [], mistakes: [], startedAt: performance.now() };
+function startGame(mode, variant = 'mix') {
+  game = { mode, variant, round: 0, score: 0, recent: [], mistakes: [], fixed: 0, startedAt: performance.now() };
+  if (mode === 'train' && !poolFor(game).length) return;
   document.body.dataset.mode = mode;
   showScreen('screen-game');
   ensureViews();
-  $('#mode-label').textContent = { train: 'Training', challenge: 'Challenge', learn: 'Lernmodus' }[mode];
+  $('#mode-label').textContent = mode === 'train' ? `Training · ${VARIANT_NAME[variant]}` : { challenge: 'Challenge', learn: 'Lernmodus' }[mode];
   if (mode === 'learn') {
     setTask('Lernmodus', 'Tippe ein Fach an');
     backToTruck();
@@ -231,14 +257,20 @@ function setTask(label, name) {
 function updateHud() {
   const hud = $('#hud');
   if (game.mode === 'challenge') hud.textContent = `${Math.min(game.round, CHALLENGE_ROUNDS)}/${CHALLENGE_ROUNDS} · ${game.score} P`;
+  else if (game.mode === 'train' && game.variant === 'errors') hud.textContent = `${poolFor(game).length} offen · ${game.score} P`;
   else if (game.mode === 'train') hud.textContent = `${game.score} P`;
   else hud.textContent = '';
 }
 
 function nextRound() {
   if (game.mode === 'challenge' && game.round >= CHALLENGE_ROUNDS) return showResult();
+  if (game.variant === 'errors' && !poolFor(game).length) return showResult();
+  const levelBefore = game.level;
   game.round++;
   const item = pickItem();
+  if (game.variant === 'prio' && levelBefore && game.level > levelBefore) {
+    toast(`Alle ${PRIO_NAME[levelBefore]}en Geräte gewusst – jetzt kommen ${PRIO_NAME[game.level]}e dazu`, 'ok');
+  }
   game.recent = [item.id, ...game.recent].slice(0, 6);
   game.item = item;
   game.phase = 'compartment';
@@ -261,6 +293,11 @@ function backToTruck() {
   truck.setView(game?.mode === 'learn' ? 'start' : (game?.lastView || 'start'));
 }
 
+function isLastRound() {
+  if (game.mode === 'challenge') return game.round >= CHALLENGE_ROUNDS;
+  return game.variant === 'errors' && !poolFor(game).length;
+}
+
 function renderControls() {
   const bar = $('#controls');
   bar.replaceChildren();
@@ -276,8 +313,7 @@ function renderControls() {
 
   if (!inPhoto) {
     if (game.phase === 'done') {
-      const last = game.mode === 'challenge' && game.round >= CHALLENGE_ROUNDS;
-      btn(last ? 'Ergebnis' : 'Weiter →', nextRound, 'primary');
+      btn(isLastRound() ? 'Ergebnis' : 'Weiter →', nextRound, 'primary');
       return;
     }
     for (const [v, label] of [['links', 'Links'], ['heck', 'Heck'], ['rechts', 'Rechts'], ['dach', 'Dach']]) {
@@ -305,8 +341,7 @@ function renderControls() {
     btn('← Fahrzeug', () => { game.phase = 'compartment'; backToTruck(); renderControls(); }, 'ghost');
     if (game.mode === 'train') btn('Tipp', () => revealItem(true), 'ghost');
   } else if (game.phase === 'done') {
-    const last = game.mode === 'challenge' && game.round >= CHALLENGE_ROUNDS;
-    btn(last ? 'Ergebnis' : 'Weiter →', nextRound, 'primary');
+    btn(isLastRound() ? 'Ergebnis' : 'Weiter →', nextRound, 'primary');
   }
 }
 
@@ -483,10 +518,19 @@ function onPhotoTap(pt) {
 
 function showResult() {
   const secs = Math.round((performance.now() - game.startedAt) / 1000);
-  const isBest = game.score > (stats.best || 0);
-  if (isBest) { stats.best = game.score; saveStats(); }
+  const time = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} min`;
   $('#result-score').textContent = game.score;
-  $('#result-meta').textContent = `${CHALLENGE_ROUNDS} Geräte in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} min${isBest ? ' · Neuer Highscore!' : ''}`;
+  if (game.mode === 'challenge') {
+    const isBest = game.score > (stats.best || 0);
+    if (isBest) { stats.best = game.score; saveStats(); }
+    $('#result-title').textContent = 'Challenge beendet';
+    $('#result-meta').textContent = `${CHALLENGE_ROUNDS} Geräte in ${time}${isBest ? ' · Neuer Highscore!' : ''}`;
+    $('#result-again').hidden = false;
+  } else {
+    $('#result-title').textContent = 'Alle Fehler korrigiert';
+    $('#result-meta').textContent = `${game.round} Runden in ${time}`;
+    $('#result-again').hidden = true;
+  }
   const seen = new Set();
   const mistakes = game.mistakes.filter((m) => !seen.has(m.item.id) && seen.add(m.item.id));
   $('#result-mistakes').replaceChildren(...mistakes.map((m) => {
@@ -521,7 +565,7 @@ $('#result-home').addEventListener('click', () => { renderHome(); showScreen('sc
 })();
 
 // Für automatische Tests
-window.hlfDebug = { get game() { return game; }, pick: (id) => onCompartmentPick(id) };
+window.hlfDebug = { get game() { return game; }, pick: (id) => onCompartmentPick(id), next: () => nextRound(), record: (id, ok) => record(id, ok), get content() { return content; } };
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

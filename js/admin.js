@@ -112,6 +112,7 @@ function renderItems() {
   $('#item-edit').hidden = !it || !loc(it);
   if (it && loc(it)) {
     $('#item-name').value = it.name;
+    $('#item-prio').value = String(it.prio || 2);
     $('#item-where').textContent = `Liegt in: ${it.locations.map((l) => l.c).join(', ')}`;
     $('#rect-delete').disabled = selectedRect === null;
   }
@@ -278,6 +279,13 @@ $('#item-existing').addEventListener('change', (e) => {
   it.locations.push({ c: compId, shapes: [] });
   markDirty();
   selectItem(it.id);
+});
+
+$('#item-prio').addEventListener('change', (e) => {
+  const it = item();
+  if (!it) return;
+  it.prio = Number(e.target.value);
+  markDirty();
 });
 
 $('#item-name').addEventListener('change', (e) => {

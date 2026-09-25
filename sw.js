@@ -1,6 +1,6 @@
 // Offline-Cache: App-Dateien vorab, alles andere beim ersten Abruf.
 // Strategie: sofort aus dem Cache antworten und im Hintergrund aktualisieren.
-const CACHE = 'hlf-trainer-v4';
+const CACHE = 'hlf-trainer-v5';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/app.js', 'js/crypto.js', 'js/truck.js', 'js/photo.js',

@@ -58,6 +58,13 @@
 
         <div id="item-edit" class="card" hidden>
           <label>Name <input id="item-name"></label>
+          <label>Wichtigkeit
+            <select id="item-prio">
+              <option value="1">wichtig – kommt bei „Wichtiges zuerst“ zuerst</option>
+              <option value="2">normal</option>
+              <option value="3">selten gebraucht</option>
+            </select>
+          </label>
           <p class="muted" id="item-where"></p>
           <div class="row">
             <button id="rect-delete" class="btn ghost small" disabled>Rechteck löschen</button>

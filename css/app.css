@@ -74,7 +74,12 @@ button { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 14px; text-align: left; padding: 16px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer;
 }
-.mode:active { transform: scale(.98); }
+.mode:not(.mode-group):active { transform: scale(.98); }
+.mode-group { flex-direction: column; align-items: stretch; cursor: default; }
+.variants { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.variants .btn { min-height: 44px; font-size: 14px; }
+.variants .btn:last-child { grid-column: 1 / -1; }
+.variants .btn:disabled { opacity: .45; }
 .mode b { display: block; font-size: 18px; }
 .mode small { color: var(--muted); }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
@@ -99,6 +104,7 @@ button { font: inherit; color: inherit; }
 .seg.new { background: var(--st-new); }
 .seg[style*="width: 0%"] { margin-left: -2px; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.prog-prio { margin-top: 10px; font-size: 14px; }
 .legend b { color: var(--text); font-variant-numeric: tabular-nums; }
 .legend i, .dot-list i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; flex: none; }
 .st-ok i { background: var(--st-ok); }
